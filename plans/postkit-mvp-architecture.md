@@ -1439,21 +1439,21 @@ extension KeychainManager {
 - ✅ Environment variables working
 - ✅ Variable interpolation in requests
 
-### Phase 4: Import Features
+### Phase 4: Import Features ✅ COMPLETE
 **Goal:** Import from external sources
 
-1. cURL import dialog
-2. cURL parser service
+1. ✅ cURL import dialog
+2. ✅ cURL parser service
    - ✅ Test edge cases thoroughly
-3. OpenAPI import dialog
-4. OpenAPI parser service
+3. ✅ OpenAPI import dialog
+4. ✅ OpenAPI parser service
    - ✅ Handle 3.0 vs 3.1 differences
-5. Collection export to JSON
+5. ✅ Collection export to JSON
 
 **Deliverables:**
-- Working cURL import
-- Working OpenAPI import
-- Collection export
+- ✅ Working cURL import
+- ✅ Working OpenAPI import
+- ✅ Collection export
 
 ### Phase 5: Polish & Release
 **Goal:** Production-ready app

@@ -8,6 +8,9 @@ struct CollectionRow: View {
     @State private var isExpanded = true
     @State private var isRenaming = false
     @State private var newName = ""
+    @State private var exportError: String?
+    
+    private let fileExporter = FileExporter()
     
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -34,6 +37,10 @@ struct CollectionRow: View {
                 createFolder()
             }
             Divider()
+            Button("Export Collection...") {
+                exportCollection()
+            }
+            Divider()
             Button("Rename") {
                 newName = collection.name
                 isRenaming = true
@@ -49,6 +56,24 @@ struct CollectionRow: View {
                 collection.name = newName
                 collection.updatedAt = Date()
             }
+        }
+        .alert("Export Failed", isPresented: .init(
+            get: { exportError != nil },
+            set: { if !$0 { exportError = nil } }
+        )) {
+            Button("OK", role: .cancel) { exportError = nil }
+        } message: {
+            if let error = exportError {
+                Text(error)
+            }
+        }
+    }
+    
+    private func exportCollection() {
+        do {
+            _ = try fileExporter.exportCollection(collection)
+        } catch {
+            exportError = error.localizedDescription
         }
     }
     

@@ -1,16 +1,14 @@
-//
-//  PostKitApp.swift
-//  PostKit
-//
-//  Created by Adryan Eka Vandra on 06/01/26.
-//
-
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 @main
 struct PostKitApp: App {
     let httpClient: HTTPClientProtocol
+    
+    @State private var showingCurlImport = false
+    @State private var showingOpenAPIImport = false
+    @State private var showingImportCollection = false
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -37,8 +35,49 @@ struct PostKitApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .sheet(isPresented: $showingCurlImport) {
+                    CurlImportSheet(collection: nil)
+                }
+                .sheet(isPresented: $showingOpenAPIImport) {
+                    OpenAPIImportSheet()
+                }
+                .fileImporter(
+                    isPresented: $showingImportCollection,
+                    allowedContentTypes: [.json],
+                    allowsMultipleSelection: false
+                ) { result in
+                    if case .success(let urls) = result, let url = urls.first {
+                        try? importCollection(from: url)
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
         .environment(\.httpClient, httpClient)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Import cURL Command...") {
+                    showingCurlImport = true
+                }
+                .keyboardShortcut("i", modifiers: [.command, .shift])
+                
+                Button("Import OpenAPI Specification...") {
+                    showingOpenAPIImport = true
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                
+                Divider()
+                
+                Button("Import Collection...") {
+                    showingImportCollection = true
+                }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+            }
+        }
+    }
+    
+    private func importCollection(from url: URL) throws {
+        let exporter = FileExporter()
+        let context = sharedModelContainer.mainContext
+        _ = try exporter.importCollection(from: url, into: context)
     }
 }
