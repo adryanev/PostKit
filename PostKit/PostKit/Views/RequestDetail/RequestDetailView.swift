@@ -11,6 +11,8 @@ struct RequestDetailView: View {
     @State private var activeTab: ResponseTab = .body
     @State private var currentTaskID: UUID?
     
+    private let interpolator = VariableInterpolator()
+    
     enum ResponseTab: String, CaseIterable {
         case body = "Body"
         case headers = "Headers"
@@ -93,13 +95,23 @@ struct RequestDetailView: View {
     }
     
     private func buildURLRequest() throws -> URLRequest {
-        var urlComponents = URLComponents(string: request.urlTemplate)
+        let variables = getActiveEnvironmentVariables()
+        
+        let interpolatedURL = try interpolator.interpolate(
+            request.urlTemplate,
+            with: variables,
+            context: .url
+        )
+        
+        var urlComponents = URLComponents(string: interpolatedURL)
         
         let queryParams = [KeyValuePair].decode(from: request.queryParamsData)
         var queryItems = urlComponents?.queryItems ?? []
         
         for param in queryParams where param.isEnabled {
-            queryItems.append(URLQueryItem(name: param.key, value: param.value))
+            let interpolatedKey = try interpolator.interpolate(param.key, with: variables, context: .general)
+            let interpolatedValue = try interpolator.interpolate(param.value, with: variables, context: .general)
+            queryItems.append(URLQueryItem(name: interpolatedKey, value: interpolatedValue))
         }
         
         let authConfig = request.authConfig
@@ -124,15 +136,18 @@ struct RequestDetailView: View {
         
         let headers = [KeyValuePair].decode(from: request.headersData)
         for header in headers where header.isEnabled {
-            urlRequest.setValue(header.value, forHTTPHeaderField: header.key)
+            let interpolatedKey = try interpolator.interpolate(header.key, with: variables, context: .header)
+            let interpolatedValue = try interpolator.interpolate(header.value, with: variables, context: .header)
+            urlRequest.setValue(interpolatedValue, forHTTPHeaderField: interpolatedKey)
         }
         
         if let bodyContent = request.bodyContent, !bodyContent.isEmpty {
+            let interpolatedBody = try interpolator.interpolate(bodyContent, with: variables, context: .body)
             switch request.bodyType {
             case .json, .raw, .xml:
-                urlRequest.httpBody = bodyContent.data(using: .utf8)
+                urlRequest.httpBody = interpolatedBody.data(using: .utf8)
             case .urlEncoded:
-                urlRequest.httpBody = bodyContent.data(using: .utf8)
+                urlRequest.httpBody = interpolatedBody.data(using: .utf8)
             case .formData, .none:
                 break
             }
@@ -145,6 +160,24 @@ struct RequestDetailView: View {
         applyAuth(&urlRequest)
         
         return urlRequest
+    }
+    
+    private func getActiveEnvironmentVariables() -> [String: String] {
+        var variables: [String: String] = [:]
+        
+        let descriptor = FetchDescriptor<APIEnvironment>(
+            predicate: #Predicate { $0.isActive }
+        )
+        
+        guard let activeEnv = try? modelContext.fetch(descriptor).first else {
+            return variables
+        }
+        
+        for variable in activeEnv.variables where variable.isEnabled {
+            variables[variable.key] = variable.value
+        }
+        
+        return variables
     }
     
     private func applyAuth(_ urlRequest: inout URLRequest) {

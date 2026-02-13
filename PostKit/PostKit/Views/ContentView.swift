@@ -45,6 +45,11 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                EnvironmentPicker()
+            }
+        }
         .onChange(of: selectedRequest) { oldValue, newValue in
             if let old = oldValue {
                 old.updatedAt = Date()
