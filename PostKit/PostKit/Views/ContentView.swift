@@ -50,10 +50,27 @@ struct ContentView: View {
                 EnvironmentPicker()
             }
         }
-        .onChange(of: selectedRequest) { oldValue, newValue in
-            if let old = oldValue {
+        .focusedValue(\.selectedRequest, selectedRequest)
+        .focusedValue(\.selectedCollection, selectedCollection)
+        .onKeyPress(.tab) {
+            if NSEvent.modifierFlags.contains(.control) {
+                cycleFocus()
+                return .handled
+            }
+            return .ignored
+        }
+        .onChange(of: selectedRequest) {
+            if let old = selectedRequest {
                 old.updatedAt = Date()
             }
+        }
+    }
+    
+    private func cycleFocus() {
+        switch focusedPane {
+        case .sidebar: focusedPane = .list
+        case .list: focusedPane = .detail
+        case .detail, .none: focusedPane = .sidebar
         }
     }
 }

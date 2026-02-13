@@ -54,6 +54,7 @@ struct PostKitApp: App {
         .modelContainer(sharedModelContainer)
         .environment(\.httpClient, httpClient)
         .commands {
+            PostKitCommands()
             CommandGroup(after: .newItem) {
                 Button("Import cURL Command...") {
                     showingCurlImport = true

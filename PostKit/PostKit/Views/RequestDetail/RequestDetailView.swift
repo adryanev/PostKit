@@ -56,6 +56,8 @@ struct RequestDetailView: View {
                 .disabled(response == nil && error == nil)
             }
         }
+        .focusedValue(\.sendRequestAction, sendRequest)
+        .focusedValue(\.cancelRequestAction, cancelRequest)
     }
     
     private func sendRequest() {
@@ -206,6 +208,8 @@ struct RequestDetailView: View {
         }
     }
     
+    private static let maxHistoryEntries = 1000
+
     private func saveHistory(_ httpResponse: HTTPResponse) {
         let entry = HistoryEntry(
             method: request.method,
@@ -216,6 +220,21 @@ struct RequestDetailView: View {
         )
         entry.request = request
         modelContext.insert(entry)
+        cleanupOldHistory()
+    }
+
+    private func cleanupOldHistory() {
+        var descriptor = FetchDescriptor<HistoryEntry>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        descriptor.fetchOffset = Self.maxHistoryEntries
+
+        guard let oldEntries = try? modelContext.fetch(descriptor), !oldEntries.isEmpty else {
+            return
+        }
+        for entry in oldEntries {
+            modelContext.delete(entry)
+        }
     }
 }
 

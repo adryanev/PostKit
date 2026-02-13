@@ -8,6 +8,8 @@ final class Folder {
     var sortOrder: Int
     
     var collection: RequestCollection?
+
+    @Relationship(deleteRule: .cascade, inverse: \HTTPRequest.folder)
     var requests: [HTTPRequest] = []
     
     init(name: String) {

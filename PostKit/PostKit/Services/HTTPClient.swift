@@ -3,9 +3,11 @@ import Foundation
 actor URLSessionHTTPClient: HTTPClientProtocol {
     private let session: URLSession
     private var activeTasks: [UUID: URLSessionTask] = [:]
+    
+    private let maxMemorySize: Int64 = 1_000_000 // 1MB
 
     init(configuration: URLSessionConfiguration = .default) {
-        var config = configuration
+        let config = configuration
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
         config.waitsForConnectivity = true
@@ -42,15 +44,39 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                             result[key] = value
                         }
                     }
-
-                    continuation.resume(returning: HTTPResponse(
-                        statusCode: httpResponse.statusCode,
-                        statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
-                        headers: headers,
-                        body: data,
-                        duration: duration,
-                        size: Int64(data.count)
-                    ))
+                    
+                    let size = Int64(data.count)
+                    
+                    if size > self.maxMemorySize {
+                        // Stream to disk
+                        let tempURL = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(UUID().uuidString)
+                        
+                        do {
+                            try data.write(to: tempURL)
+                            continuation.resume(returning: HTTPResponse(
+                                statusCode: httpResponse.statusCode,
+                                statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
+                                headers: headers,
+                                body: nil,
+                                bodyFileURL: tempURL,
+                                duration: duration,
+                                size: size
+                            ))
+                        } catch {
+                            continuation.resume(throwing: HTTPClientError.networkError(error))
+                        }
+                    } else {
+                        continuation.resume(returning: HTTPResponse(
+                            statusCode: httpResponse.statusCode,
+                            statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
+                            headers: headers,
+                            body: data,
+                            bodyFileURL: nil,
+                            duration: duration,
+                            size: size
+                        ))
+                    }
                 }
 
                 Task { await self.storeTask(task, id: taskID) }

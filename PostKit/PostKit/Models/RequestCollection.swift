@@ -10,8 +10,13 @@ final class RequestCollection {
     var updatedAt: Date
     var sortOrder: Int
     
+    @Relationship(deleteRule: .cascade, inverse: \Folder.collection)
     var folders: [Folder] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \HTTPRequest.collection)
     var requests: [HTTPRequest] = []
+
+    @Relationship(deleteRule: .cascade, inverse: \APIEnvironment.collection)
     var environments: [APIEnvironment] = []
     
     init(name: String, folderPath: String? = nil) {

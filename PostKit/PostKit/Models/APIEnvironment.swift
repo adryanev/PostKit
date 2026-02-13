@@ -8,7 +8,9 @@ final class APIEnvironment {
     var isActive: Bool
     var createdAt: Date
     
+    @Relationship(deleteRule: .cascade, inverse: \Variable.environment)
     var variables: [Variable] = []
+
     var collection: RequestCollection?
     
     init(name: String) {

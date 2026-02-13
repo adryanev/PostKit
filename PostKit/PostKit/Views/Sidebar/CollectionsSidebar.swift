@@ -23,6 +23,7 @@ struct CollectionsSidebar: View {
                 Button(action: { isAddingCollection = true }) {
                     Label("New Collection", systemImage: "folder.badge.plus")
                 }
+                .accessibilityHint("Create a new collection to organize your API requests")
             }
         }
         .alert("New Collection", isPresented: $isAddingCollection) {

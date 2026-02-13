@@ -19,6 +19,8 @@ struct URLBar: View {
             }
             .frame(width: 90)
             .labelsHidden()
+            .accessibilityLabel("HTTP Method")
+            .accessibilityValue(method.rawValue)
             
             TextField("Enter request URL", text: $url)
                 .textFieldStyle(.plain)
@@ -33,6 +35,8 @@ struct URLBar: View {
                         onSend()
                     }
                 }
+                .accessibilityLabel("Request URL")
+                .accessibilityHint("Enter the URL for the HTTP request")
             
             Button(action: isSending ? onCancel : onSend) {
                 if isSending {
@@ -49,6 +53,8 @@ struct URLBar: View {
             .buttonStyle(.borderedProminent)
             .frame(minWidth: 70)
             .keyboardShortcut(.return, modifiers: .command)
+            .accessibilityLabel(isSending ? "Cancel Request" : "Send Request")
+            .accessibilityHint(isSending ? "Cancel the in-flight request" : "Send the HTTP request. Shortcut: Command+Return")
         }
         .padding(12)
         .background(Color(nsColor: .windowBackgroundColor))

@@ -9,7 +9,7 @@ struct RequestRow: View {
             Text(request.method.rawValue)
                 .font(.system(.caption, design: .monospaced))
                 .fontWeight(.semibold)
-                .foregroundStyle(methodColor)
+                .foregroundStyle(request.method.color)
                 .frame(width: compact ? 50 : 60, alignment: .leading)
             
             Text(request.name)
@@ -19,17 +19,8 @@ struct RequestRow: View {
             Spacer()
         }
         .padding(.vertical, 2)
-    }
-    
-    private var methodColor: Color {
-        switch request.method {
-        case .get: .green
-        case .post: .orange
-        case .put: .blue
-        case .patch: .purple
-        case .delete: .red
-        case .head, .options: .gray
-        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(request.method.rawValue) \(request.name)")
     }
 }
 

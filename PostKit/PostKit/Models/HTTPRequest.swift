@@ -18,6 +18,8 @@ final class HTTPRequest {
     
     var collection: RequestCollection?
     var folder: Folder?
+
+    @Relationship(deleteRule: .cascade, inverse: \HistoryEntry.request)
     var history: [HistoryEntry] = []
     
     @Transient var method: HTTPMethod {

@@ -1455,22 +1455,28 @@ extension KeychainManager {
 - ✅ Working OpenAPI import
 - ✅ Collection export
 
-### Phase 5: Polish & Release
+### Phase 5: Polish & Release ✅ COMPLETE
 **Goal:** Production-ready app
 
-1. Keyboard shortcuts
-2. Empty states
-3. Error handling UI
-4. Accessibility audit
-5. Performance optimization
+1. ✅ Keyboard shortcuts (Cmd+D duplicate, Cmd+. cancel, Cmd+Enter send, Cmd+S save, Ctrl+Tab cycle focus)
+2. ✅ Empty states (ContentUnavailableView for all empty panes)
+3. ✅ Error handling UI (ErrorView with timeout hints, inline load errors)
+4. ✅ Accessibility audit (labels, hints, combined elements for VoiceOver)
+5. ✅ Performance optimization
    - ✅ Add pagination for large collections
    - ✅ Stream large responses to disk
-6. App icon and branding
+   - ✅ History cleanup (limit 1000 entries)
+6. App icon and branding (deferred - not code-level)
+
+**Additional fixes applied:**
+- ✅ SwiftData cascade delete rules on all parent-child relationships
+- ✅ HTTPMethod color property for reusable method badge coloring
+- ✅ FocusedValue action pattern for Commands (send/cancel from menu)
 
 **Deliverables:**
-- Polished UI
-- Full keyboard navigation
-- Ready for release
+- ✅ Polished UI
+- ✅ Full keyboard navigation
+- Ready for release (pending icon/branding)
 
 ---
 

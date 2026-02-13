@@ -38,7 +38,7 @@ struct ResponseContentView: View {
             ScrollView {
                 switch activeTab {
                 case .body:
-                    ResponseBodyView(data: response.body)
+                    ResponseBodyView(response: response)
                 case .headers:
                     ResponseHeadersView(headers: response.headers)
                 case .timing:
@@ -46,6 +46,99 @@ struct ResponseContentView: View {
                 }
             }
         }
+    }
+}
+
+struct ResponseBodyView: View {
+    let response: HTTPResponse
+    @State private var showRaw = false
+    @State private var bodyData: Data?
+    @State private var loadError: String?
+    
+    private let maxDisplaySize: Int64 = 10_000_000 // 10MB
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if response.size > maxDisplaySize {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text("Response is too large to display (\(formatBytes(response.size))).")
+                        .font(.caption)
+                }
+                .padding(.horizontal)
+                .padding(.top)
+            }
+            
+            HStack {
+                if isJSON {
+                    Toggle("Raw", isOn: $showRaw)
+                        .toggleStyle(.checkbox)
+                }
+                Spacer()
+                Button("Copy") {
+                    if let data = bodyData {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(String(data: data, encoding: .utf8) ?? "", forType: .string)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(bodyData == nil)
+            }
+            
+            if let data = bodyData {
+                ScrollView([.horizontal, .vertical]) {
+                    Text(displayString(for: data))
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                }
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(6)
+            } else if let error = loadError {
+                Text(error)
+                    .foregroundStyle(.red)
+            } else {
+                ProgressView("Loading body...")
+                    .frame(maxWidth: .infinity, minHeight: 200)
+                    .task {
+                        do {
+                            bodyData = try response.getBodyData()
+                        } catch {
+                            loadError = error.localizedDescription
+                        }
+                    }
+            }
+        }
+        .padding(12)
+    }
+    
+    private var isJSON: Bool {
+        guard let data = bodyData,
+              let json = try? JSONSerialization.jsonObject(with: data) else { return false }
+        return json is [Any] || json is [String: Any]
+    }
+    
+    private func displayString(for data: Data) -> String {
+        let actualData = data.prefix(Int(maxDisplaySize))
+        let bodyString = String(data: actualData, encoding: .utf8) ?? "<binary data>"
+        
+        if !showRaw && isJSON {
+            if let pretty = try? JSONSerialization.jsonObject(with: actualData),
+               let data = try? JSONSerialization.data(withJSONObject: pretty, options: .prettyPrinted),
+               let string = String(data: data, encoding: .utf8) {
+                return string
+            }
+        }
+        return bodyString
+    }
+    
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 }
 
@@ -76,6 +169,8 @@ struct ResponseStatusBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(nsColor: .windowBackgroundColor))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Response: \(response.statusCode) \(response.statusMessage), \(String(format: "%.0f", response.duration * 1000)) milliseconds, \(formatBytes(response.size))")
     }
     
     private var statusColor: Color {
@@ -93,59 +188,6 @@ struct ResponseStatusBar: View {
         formatter.allowedUnits = [.useBytes, .useKB, .useMB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: bytes)
-    }
-}
-
-struct ResponseBodyView: View {
-    let data: Data
-    @State private var showRaw = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                if isJSON {
-                    Toggle("Raw", isOn: $showRaw)
-                        .toggleStyle(.checkbox)
-                }
-                Spacer()
-                Button("Copy") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(bodyString, forType: .string)
-                }
-                .buttonStyle(.bordered)
-            }
-            
-            ScrollView([.horizontal, .vertical]) {
-                Text(displayString)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-            }
-            .background(Color(nsColor: .textBackgroundColor))
-            .cornerRadius(6)
-        }
-        .padding(12)
-    }
-    
-    private var isJSON: Bool {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return false }
-        return json is [Any] || json is [String: Any]
-    }
-    
-    private var bodyString: String {
-        String(data: data, encoding: .utf8) ?? "<binary data>"
-    }
-    
-    private var displayString: String {
-        if !showRaw && isJSON {
-            if let pretty = try? JSONSerialization.jsonObject(with: data),
-               let data = try? JSONSerialization.data(withJSONObject: pretty, options: .prettyPrinted),
-               let string = String(data: data, encoding: .utf8) {
-                return string
-            }
-        }
-        return bodyString
     }
 }
 
@@ -271,6 +313,7 @@ struct EmptyResponseView: View {
           ]
         }
         """.data(using: .utf8)!,
+        bodyFileURL: nil,
         duration: 0.234,
         size: 1234
     )
