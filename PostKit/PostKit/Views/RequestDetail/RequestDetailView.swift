@@ -93,7 +93,28 @@ struct RequestDetailView: View {
     }
     
     private func buildURLRequest() throws -> URLRequest {
-        guard let url = URL(string: request.urlTemplate) else {
+        var urlComponents = URLComponents(string: request.urlTemplate)
+        
+        let queryParams = [KeyValuePair].decode(from: request.queryParamsData)
+        var queryItems = urlComponents?.queryItems ?? []
+        
+        for param in queryParams where param.isEnabled {
+            queryItems.append(URLQueryItem(name: param.key, value: param.value))
+        }
+        
+        let authConfig = request.authConfig
+        if authConfig.type == .apiKey,
+           authConfig.apiKeyLocation == .queryParam,
+           let name = authConfig.apiKeyName,
+           let value = authConfig.apiKeyValue {
+            queryItems.append(URLQueryItem(name: name, value: value))
+        }
+        
+        if !queryItems.isEmpty {
+            urlComponents?.queryItems = queryItems
+        }
+        
+        guard let url = urlComponents?.url else {
             throw HTTPClientError.invalidURL
         }
         
