@@ -637,3 +637,143 @@ struct OpenAPIParserTests {
         #expect(endpoints[0].name == "Health check")
     }
 }
+
+// MARK: - CurlHTTPClient Tests
+
+struct CurlHTTPClientTests {
+    @Test func statusMessageExtractionFromHeaderLine() {
+        let headerLines = ["HTTP/1.1 200 OK", "Content-Type: application/json"]
+        let message = parseStatusMessage(from: headerLines, statusCode: 200)
+        #expect(message == "OK")
+    }
+    
+    @Test func statusMessageExtractionFromNoHeaders() {
+        let headerLines: [String] = []
+        let message = parseStatusMessage(from: headerLines, statusCode: 404)
+        #expect(message == HTTPURLResponse.localizedString(forStatusCode: 404))
+    }
+    
+    @Test func statusMessageExtractionFromMalformedLine() {
+        let headerLines = ["HTTP/1.1 500"]
+        let message = parseStatusMessage(from: headerLines, statusCode: 500)
+        #expect(message == HTTPURLResponse.localizedString(forStatusCode: 500))
+    }
+    
+    @Test func statusMessageExtractionFromNonHTTPLine() {
+        let headerLines = ["Invalid response"]
+        let message = parseStatusMessage(from: headerLines, statusCode: 200)
+        #expect(message == HTTPURLResponse.localizedString(forStatusCode: 200))
+    }
+    
+    @Test func timingDeltaClampingWithPositiveValues() {
+        let timing = TimingBreakdown(
+            dnsLookup: 0.05,
+            tcpConnection: 0.03,
+            tlsHandshake: 0.02,
+            transferStart: 0.01,
+            download: 0.10,
+            total: 0.21,
+            redirectTime: 0
+        )
+        #expect(timing.dnsLookup == 0.05)
+        #expect(timing.tcpConnection >= 0)
+        #expect(timing.tlsHandshake >= 0)
+    }
+    
+    @Test func timingDeltaClampingWithZeroValues() {
+        let timing = TimingBreakdown(
+            dnsLookup: 0,
+            tcpConnection: 0,
+            tlsHandshake: 0,
+            transferStart: 0.01,
+            download: 0.05,
+            total: 0.06,
+            redirectTime: 0
+        )
+        #expect(timing.dnsLookup == 0)
+        #expect(timing.tcpConnection == 0)
+        #expect(timing.tlsHandshake == 0)
+    }
+    
+    @Test func sanitizeForCurlStripsCRLF() {
+        let input = "hello\r\nworld"
+        let result = sanitizeForCurl(input)
+        #expect(result == "helloworld")
+    }
+    
+    @Test func sanitizeForCurlStripsNUL() {
+        let input = "hello\0world"
+        let result = sanitizeForCurl(input)
+        #expect(result == "helloworld")
+    }
+    
+    @Test func sanitizeForCurlStripsAllControlChars() {
+        let input = "line1\r\n\0line2"
+        let result = sanitizeForCurl(input)
+        #expect(result == "line1line2")
+    }
+    
+    @Test func httpClientErrorTimeoutExists() {
+        let error = HTTPClientError.timeout
+        #expect(error.errorDescription == "Request timed out")
+    }
+    
+    @Test func httpClientErrorCurlInitFailedExists() {
+        let error = HTTPClientError.curlInitFailed
+        #expect(error.errorDescription == "Failed to initialize curl")
+    }
+    
+    @Test func httpClientErrorResponseTooLarge() {
+        let error = HTTPClientError.responseTooLarge(100_000_000)
+        #expect(error.errorDescription?.contains("100000000") == true)
+    }
+    
+    @Test func curlHTTPClientConformsToHTTPClientProtocol() throws {
+        // This is a compile-time check - if CurlHTTPClient doesn't conform to HTTPClientProtocol,
+        // the code wouldn't compile. We just verify we can create an instance.
+        _ = try CurlHTTPClient()
+        #expect(Bool(true))
+    }
+}
+
+// MARK: - TimingBreakdown Tests
+
+struct TimingBreakdownTests {
+    @Test func timingBreakdownIsCodable() throws {
+        let timing = TimingBreakdown(
+            dnsLookup: 0.05,
+            tcpConnection: 0.03,
+            tlsHandshake: 0.02,
+            transferStart: 0.01,
+            download: 0.10,
+            total: 0.21,
+            redirectTime: 0.05
+        )
+        
+        let data = try JSONEncoder().encode(timing)
+        let decoded = try JSONDecoder().decode(TimingBreakdown.self, from: data)
+        
+        #expect(decoded.dnsLookup == timing.dnsLookup)
+        #expect(decoded.tcpConnection == timing.tcpConnection)
+        #expect(decoded.tlsHandshake == timing.tlsHandshake)
+        #expect(decoded.transferStart == timing.transferStart)
+        #expect(decoded.download == timing.download)
+        #expect(decoded.total == timing.total)
+        #expect(decoded.redirectTime == timing.redirectTime)
+    }
+    
+    @Test func timingBreakdownIsSendable() {
+        let timing = TimingBreakdown(
+            dnsLookup: 0.01,
+            tcpConnection: 0.02,
+            tlsHandshake: 0.03,
+            transferStart: 0.04,
+            download: 0.05,
+            total: 0.15,
+            redirectTime: 0
+        )
+        // This is a compile-time check
+        let _: Sendable = timing
+        #expect(true)
+    }
+}

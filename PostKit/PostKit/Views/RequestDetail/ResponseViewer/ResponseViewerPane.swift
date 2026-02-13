@@ -51,7 +51,7 @@ struct ResponseContentView: View {
                 case .headers:
                     ResponseHeadersView(headers: response.headers)
                 case .timing:
-                    ResponseTimingView(duration: response.duration, size: response.size)
+                    ResponseTimingView(duration: response.duration, size: response.size, timingBreakdown: response.timingBreakdown)
                 }
             }
         }
@@ -217,6 +217,7 @@ struct ResponseHeadersView: View {
 struct ResponseTimingView: View {
     let duration: TimeInterval
     let size: Int64
+    let timingBreakdown: TimingBreakdown?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -242,11 +243,92 @@ struct ResponseTimingView: View {
             .background(Color(nsColor: .textBackgroundColor))
             .cornerRadius(6)
             
-            Text("Detailed timing metrics coming soon")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let breakdown = timingBreakdown {
+                TimingWaterfallView(timing: breakdown)
+            } else {
+                Text("Detailed timing metrics coming soon")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(12)
+    }
+}
+
+struct TimingWaterfallView: View {
+    let timing: TimingBreakdown
+    
+    private var phases: [(String, TimeInterval, Color)] {
+        [
+            ("DNS", timing.dnsLookup, .blue),
+            ("TCP", timing.tcpConnection, .green),
+            ("TLS", timing.tlsHandshake, .orange),
+            ("TTFB", timing.transferStart, .purple),
+            ("Download", timing.download, .teal),
+        ]
+    }
+    
+    private var connectionReused: Bool {
+        timing.dnsLookup < 0.001 && timing.tcpConnection < 0.001 && timing.tlsHandshake < 0.001
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if connectionReused {
+                HStack {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.green)
+                    Text("Connection reused")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, 4)
+            }
+            
+            ForEach(phases, id: \.0) { name, duration, color in
+                HStack(spacing: 8) {
+                    Text(name)
+                        .font(.caption)
+                        .frame(width: 60, alignment: .trailing)
+                    
+                    if timing.total > 0 {
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(color)
+                                .frame(width: max(2, geo.size.width * (duration / timing.total)))
+                        }
+                        .frame(height: 12)
+                    } else {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 12)
+                    }
+                    
+                    Text(String(format: "%.1f ms", duration * 1000))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .frame(width: 70, alignment: .trailing)
+                }
+            }
+            
+            if timing.redirectTime > 0 {
+                HStack(spacing: 8) {
+                    Text("Redirect")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                    Spacer()
+                    Text(String(format: "%.1f ms", timing.redirectTime * 1000))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 70, alignment: .trailing)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .textBackgroundColor))
+        .cornerRadius(6)
     }
 }
 
@@ -269,9 +351,13 @@ struct ErrorView: View {
             
             if let clientError = error as? HTTPClientError {
                 switch clientError {
+                case .timeout:
+                    Text("The request timed out. Try a simpler request or check the server.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 case .networkError(let underlying):
                     if (underlying as NSError).code == NSURLErrorTimedOut {
-                        Text("The request timed out. Try increasing the timeout in settings.")
+                        Text("The request timed out. Try a simpler request or check the server.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -310,7 +396,8 @@ struct EmptyResponseView: View {
         """.data(using: .utf8)!,
         bodyFileURL: nil,
         duration: 0.234,
-        size: 1234
+        size: 1234,
+        timingBreakdown: nil
     )
     
     ResponseViewerPane(

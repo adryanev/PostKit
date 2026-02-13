@@ -5,6 +5,16 @@ protocol HTTPClientProtocol: Sendable {
     func cancel(taskID: UUID) async
 }
 
+struct TimingBreakdown: Sendable, Codable {
+    let dnsLookup: TimeInterval
+    let tcpConnection: TimeInterval
+    let tlsHandshake: TimeInterval
+    let transferStart: TimeInterval
+    let download: TimeInterval
+    let total: TimeInterval
+    let redirectTime: TimeInterval
+}
+
 struct HTTPResponse: Sendable {
     let statusCode: Int
     let statusMessage: String
@@ -13,6 +23,7 @@ struct HTTPResponse: Sendable {
     let bodyFileURL: URL?
     let duration: TimeInterval
     let size: Int64
+    let timingBreakdown: TimingBreakdown?
     
     var isLarge: Bool {
         bodyFileURL != nil

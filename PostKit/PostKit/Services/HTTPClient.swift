@@ -73,7 +73,6 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
         let size = (fileAttributes[.size] as? Int64) ?? 0
 
         if size > maxMemorySize {
-            // Large response: keep on disk, return file URL
             return HTTPResponse(
                 statusCode: httpResponse.statusCode,
                 statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
@@ -81,10 +80,10 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                 body: nil,
                 bodyFileURL: tempDownloadURL,
                 duration: duration,
-                size: size
+                size: size,
+                timingBreakdown: nil
             )
         } else {
-            // Small response: read into memory, clean up temp file
             let data = try Data(contentsOf: tempDownloadURL)
             try? FileManager.default.removeItem(at: tempDownloadURL)
             return HTTPResponse(
@@ -94,7 +93,8 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                 body: data,
                 bodyFileURL: nil,
                 duration: duration,
-                size: size
+                size: size,
+                timingBreakdown: nil
             )
         }
     }
@@ -118,6 +118,8 @@ enum HTTPClientError: LocalizedError {
     case invalidURL
     case networkError(Error)
     case responseTooLarge(Int64)
+    case timeout
+    case curlInitFailed
 
     var errorDescription: String? {
         switch self {
@@ -125,6 +127,8 @@ enum HTTPClientError: LocalizedError {
         case .invalidURL: return "Invalid URL"
         case .networkError(let error): return error.localizedDescription
         case .responseTooLarge(let size): return "Response too large: \(size) bytes"
+        case .timeout: return "Request timed out"
+        case .curlInitFailed: return "Failed to initialize curl"
         }
     }
 }
