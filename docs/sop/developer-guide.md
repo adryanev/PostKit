@@ -76,7 +76,7 @@
 ```bash
 # Clone the repository
 git clone git@github.com:adryanev/PostKit.git
-cd PostKit/PostKit
+cd PostKit
 
 # Open in Xcode
 open PostKit.xcodeproj
@@ -675,47 +675,47 @@ Shortcuts are implemented via two mechanisms:
 
 ## Appendix B: Key File Reference
 
-| # | File | LOC | Purpose |
-|---|------|-----|---------|
-| 1 | `PostKitApp.swift` | 91 | App entry point, SwiftData schema, import menus |
-| 2 | `PostKit.entitlements` | 12 | App Sandbox configuration |
-| 3 | `Models/RequestCollection.swift` | 30 | Top-level collection with cascade relationships |
-| 4 | `Models/Folder.swift` | 20 | Folder within a collection |
-| 5 | `Models/HTTPRequest.swift` | 79 | Request model, @Transient enum bridging, authConfig caching |
-| 6 | `Models/APIEnvironment.swift` | 22 | Environment with isActive flag |
-| 7 | `Models/Variable.swift` | 56 | Key-value with Keychain-backed secureValue |
-| 8 | `Models/HistoryEntry.swift` | 30 | Execution history record |
-| 9 | `Models/Enums/HTTPMethod.swift` | 23 | HTTP methods with color mapping |
-| 10 | `Models/Enums/BodyType.swift` | 21 | Body types with contentType mapping |
-| 11 | `Models/Enums/AuthType.swift` | 107 | Auth types, AuthConfig, Keychain integration |
-| 12 | `ViewModels/RequestViewModel.swift` | 237 | @Observable VM: execution, history, auth, interpolation |
-| 13 | `Views/ContentView.swift` | 80 | NavigationSplitView 3-pane layout |
-| 14 | `Views/PostKitCommands.swift` | 49 | Menu bar keyboard shortcuts |
-| 15 | `Views/Sidebar/CollectionsSidebar.swift` | — | Collection list with CRUD |
-| 16 | `Views/Sidebar/CollectionRow.swift` | — | Single collection row |
-| 17 | `Views/RequestList/RequestListView.swift` | — | Request list for selected collection |
-| 18 | `Views/RequestList/RequestRow.swift` | — | Single request row (method badge + name) |
-| 19 | `Views/RequestDetail/RequestDetailView.swift` | 73 | Request editor + response viewer split |
-| 20 | `Views/RequestDetail/RequestEditor/RequestEditorPane.swift` | — | Headers, params, body, auth tabs |
-| 21 | `Views/RequestDetail/RequestEditor/URLBar.swift` | — | Method picker + URL field + Send button |
-| 22 | `Views/RequestDetail/ResponseViewer/ResponseViewerPane.swift` | — | Body, headers, timing tabs |
-| 23 | `Views/Environment/EnvironmentPicker.swift` | — | Toolbar environment selector |
-| 24 | `Views/Import/CurlImportSheet.swift` | — | cURL paste-and-import sheet |
-| 25 | `Views/Import/OpenAPIImportSheet.swift` | — | OpenAPI file picker and import |
-| 26 | `Services/HTTPClient.swift` | 131 | Actor-based URLSession client with memory threshold |
-| 27 | `Services/CurlParser.swift` | 180 | cURL command tokenizer and parser |
-| 28 | `Services/OpenAPIParser.swift` | 121 | OpenAPI 3.x spec parser |
-| 29 | `Services/FileExporter.swift` | 183 | JSON export with redaction, import |
-| 30 | `Services/VariableInterpolator.swift` | 65 | `{{variable}}` template engine |
-| 31 | `Services/KeychainManager.swift` | 108 | macOS Keychain CRUD wrapper |
-| 32 | `Services/Protocols/HTTPClientProtocol.swift` | 30 | Protocol + HTTPResponse struct |
-| 33 | `Utilities/Environment+HTTPClient.swift` | 15 | SwiftUI EnvironmentKey for HTTP client DI |
-| 34 | `Utilities/FocusedValues.swift` | 34 | FocusedValueKeys for menu-to-view bridging |
-| 35 | `Utilities/KeyValuePair.swift` | 25 | Codable struct for headers/params with encode/decode |
-| 36 | `PostKitTests/PostKitTests.swift` | 640 | All unit tests (5 test suites, 61 tests) |
-| 37 | `PostKitUITests/PostKitUITests.swift` | — | UI test placeholder |
+| # | File | Purpose |
+|---|------|---------|
+| 1 | `PostKitApp.swift` | App entry point, SwiftData schema, import menus |
+| 2 | `PostKit.entitlements` | App Sandbox configuration |
+| 3 | `Models/RequestCollection.swift` | Top-level collection with cascade relationships |
+| 4 | `Models/Folder.swift` | Folder within a collection |
+| 5 | `Models/HTTPRequest.swift` | Request model, @Transient enum bridging, authConfig caching |
+| 6 | `Models/APIEnvironment.swift` | Environment with isActive flag |
+| 7 | `Models/Variable.swift` | Key-value with Keychain-backed secureValue |
+| 8 | `Models/HistoryEntry.swift` | Execution history record |
+| 9 | `Models/Enums/HTTPMethod.swift` | HTTP methods with color mapping |
+| 10 | `Models/Enums/BodyType.swift` | Body types with contentType mapping |
+| 11 | `Models/Enums/AuthType.swift` | Auth types, AuthConfig, Keychain integration |
+| 12 | `ViewModels/RequestViewModel.swift` | @Observable VM: execution, history, auth, interpolation |
+| 13 | `Views/ContentView.swift` | NavigationSplitView 3-pane layout |
+| 14 | `Views/PostKitCommands.swift` | Menu bar keyboard shortcuts |
+| 15 | `Views/Sidebar/CollectionsSidebar.swift` | Collection list with CRUD |
+| 16 | `Views/Sidebar/CollectionRow.swift` | Single collection row |
+| 17 | `Views/RequestList/RequestListView.swift` | Request list for selected collection |
+| 18 | `Views/RequestList/RequestRow.swift` | Single request row (method badge + name) |
+| 19 | `Views/RequestDetail/RequestDetailView.swift` | Request editor + response viewer split |
+| 20 | `Views/RequestDetail/RequestEditor/RequestEditorPane.swift` | Headers, params, body, auth tabs |
+| 21 | `Views/RequestDetail/RequestEditor/URLBar.swift` | Method picker + URL field + Send button |
+| 22 | `Views/RequestDetail/ResponseViewer/ResponseViewerPane.swift` | Body, headers, timing tabs |
+| 23 | `Views/Environment/EnvironmentPicker.swift` | Toolbar environment selector |
+| 24 | `Views/Import/CurlImportSheet.swift` | cURL paste-and-import sheet |
+| 25 | `Views/Import/OpenAPIImportSheet.swift` | OpenAPI file picker and import |
+| 26 | `Services/HTTPClient.swift` | Actor-based URLSession client with memory threshold |
+| 27 | `Services/CurlParser.swift` | cURL command tokenizer and parser |
+| 28 | `Services/OpenAPIParser.swift` | OpenAPI 3.x spec parser |
+| 29 | `Services/FileExporter.swift` | JSON export with redaction, import |
+| 30 | `Services/VariableInterpolator.swift` | `{{variable}}` template engine |
+| 31 | `Services/KeychainManager.swift` | macOS Keychain CRUD wrapper |
+| 32 | `Services/Protocols/HTTPClientProtocol.swift` | Protocol + HTTPResponse struct |
+| 33 | `Utilities/Environment+HTTPClient.swift` | SwiftUI EnvironmentKey for HTTP client DI |
+| 34 | `Utilities/FocusedValues.swift` | FocusedValueKeys for menu-to-view bridging |
+| 35 | `Utilities/KeyValuePair.swift` | Codable struct for headers/params with encode/decode |
+| 36 | `PostKitTests/PostKitTests.swift` | All unit tests (5 test suites, 61 tests) |
+| 37 | `PostKitUITests/PostKitUITests.swift` | UI test placeholder |
 
-> **Note:** LOC marked "—" are files not directly measured during this guide's creation. All file paths are relative to `PostKit/PostKit/` (the Xcode source target root).
+> **Note:** All file paths are relative to `PostKit/PostKit/` (the Xcode source target root).
 
 ---
 

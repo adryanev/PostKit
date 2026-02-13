@@ -48,7 +48,7 @@ PostKit is a lightweight alternative to tools like Postman and Insomnia, designe
 
 ## Requirements
 
-- macOS 15.0+
+- macOS 14.0+
 - Xcode 16.0+
 
 ## Build
@@ -57,7 +57,7 @@ Clone the repository and open the Xcode project:
 
 ```bash
 git clone git@github.com:adryanev/PostKit.git
-cd PostKit/PostKit
+cd PostKit
 open PostKit.xcodeproj
 ```
 
