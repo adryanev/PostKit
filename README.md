@@ -4,6 +4,8 @@ A native macOS HTTP client for API development and testing. Built with SwiftUI a
 
 PostKit is a lightweight alternative to tools like Postman and Insomnia, designed to feel at home on macOS with native performance, Keychain-backed credential storage, and a familiar three-column layout.
 
+![PostKit Screenshot](assets/screenshot.png)
+
 ## Features
 
 **Request Builder**
