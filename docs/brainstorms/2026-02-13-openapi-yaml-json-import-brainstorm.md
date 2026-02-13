@@ -25,7 +25,7 @@ Evolve the existing `OpenAPIImportSheet` into a multi-step wizard:
 
 - **Step 1 — File Select**: Pick YAML/JSON file, parse and validate
 - **Step 2 — Target**: "Create new collection" or pick an existing collection (always shown)
-- **Step 3 — Configure**: Server picker, endpoint list with tag-folder preview, auth scheme preview, environment preview
+- **Step 3 — Configure**: Server picker + endpoint list with tag-folder preview. Auth and environment sections collapsible.
 - **Step 4 — Conflicts** (update mode only): Side-by-side diff for endpoints that already exist with changes
 
 **Why this over alternatives:**

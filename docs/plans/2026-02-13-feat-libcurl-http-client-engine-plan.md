@@ -114,19 +114,24 @@ CurlShims could live as a top-level directory (`CurlShims/`) rather than nested 
 | Protocol restriction | `CURLOPT_PROTOCOLS_STR = "http,https"` *(added)* | Prevents `file://`, `ftp://`, `gopher://` protocol abuse if a malicious URL is pasted. |
 | TLS minimum | `CURLOPT_SSLVERSION = CURL_SSLVERSION_TLSv1_2` *(added)* | Prevents downgrade to TLS 1.0/1.1. |
 | Response size limit | `CURLOPT_MAXFILESIZE_LARGE = 100MB` *(added)* | Prevents unbounded memory/disk use from enormous responses. |
+| TLS verification | Explicit `CURLOPT_SSL_VERIFYPEER=1`, `CURLOPT_SSL_VERIFYHOST=2` *(added)* | Defense in depth — defaults could change if `curl_easy_reset` is used in future refactoring. |
+| Redirect protocol restriction | `CURLOPT_REDIR_PROTOCOLS_STR = "http,https"` *(added)* | Server-initiated redirects to `file://` or `gopher://` URLs are SSRF vectors. |
+| Timeout strategy | `CURLOPT_TIMEOUT=300` + `LOW_SPEED_LIMIT/TIME=1/30` *(updated)* | Maps URLSession's dual-timeout model: `timeoutIntervalForResource=300` (total) + `timeoutIntervalForRequest=30` (idle). Reads `URLRequest.timeoutInterval` for idle detection. |
 
 ### Important Constraints
 
 1. **No HTTP/2**: curl-apple is built with `--without-nghttp2`. Only HTTP/1.1 for now.
 2. **Binary size**: curl-apple xcframework is ~70MB (compressed) due to bundled OpenSSL.
-3. **`curl_global_init` must be called once before any handle creation** — Use a `static let` inside `CurlHTTPClient` (not `PostKitApp.init()`) to guarantee ordering, since `HTTPClientKey.defaultValue` is evaluated lazily and may run before `PostKitApp.init()`.
+3. **`curl_global_init` must be called once before any handle creation** — Use a `static let` inside `CurlHTTPClient` that stores the `CURLcode` return value. Check it in `init() throws` to enable URLSession fallback if initialization fails. Swift's `static let` guarantees thread-safe once-only execution (`dispatch_once` semantics).
 4. **Handle serialization**: A curl easy handle is NOT thread-safe. With fresh-handle-per-request, the serial GCD queue still ensures only one `curl_easy_perform` runs at a time. (PostKit sends one request at a time in practice.)
 5. **`CURLOPT_COPYPOSTFIELDS`** — Use instead of `CURLOPT_POSTFIELDS`. Libcurl copies the body data internally, removing the lifetime pinning burden from `CurlTransferContext`.
 6. **`curl_slist` for headers must outlive `curl_easy_perform`** — Scope the `defer { curl_slist_free_all(headerList) }` to encompass the entire perform call, not just the slist creation block. Libcurl does NOT copy header strings.
 7. **`CURLOPT_NOSIGNAL = 1`** must be set on every handle — prevents SIGALRM crashes during DNS timeout in multithreaded apps.
 8. **Continuation double-resume prevention** — Use `OSAllocatedUnfairLock<Bool>` for the `didResume` flag in `CurlTransferContext` to ensure the `CheckedContinuation` is resumed exactly once (handles the race between perform completion and Task cancellation).
-9. **`Unmanaged` pointer safety** — Use `Unmanaged.passRetained(context).toOpaque()` when passing `CurlTransferContext` to C callbacks, and `Unmanaged.fromOpaque(ptr).takeRetainedValue()` after perform completes. This ensures the context isn't deallocated during the callback. *(Added per security review)*
+9. **`Unmanaged` pointer safety (two-phase pattern)** — Setup: `Unmanaged.passRetained(context).toOpaque()` creates the opaque pointer with +1 retain. Inside ALL `@convention(c)` callbacks: `Unmanaged.fromOpaque(ptr).takeUnretainedValue()` borrows WITHOUT consuming retain. After `curl_easy_perform` returns: `Unmanaged.fromOpaque(ptr).takeRetainedValue()` consumes the retain exactly once. **WARNING: `takeRetainedValue` must NEVER appear inside a callback body** — it would free the context while libcurl is still using it. *(Added per security + architecture review)*
 10. **OpenSSL patching obligation** — Bundling OpenSSL means PostKit must track curl-apple releases for security patches. curl-apple auto-updates within 24h of upstream curl releases, but the app must be rebuilt and re-released. *(Added per security review)*
+11. **CRLF/NUL sanitization at Swift/C boundary** — URLSession's `URLRequest.setValue` implicitly strips `\r\n` from header values. libcurl's `curl_slist_append` does not sanitize at all. All strings (headers, URLs, credentials) must be sanitized before passing to any `curl_easy_setopt` or `curl_slist_append` call. *(Added per security review)*
+12. **Write callback byte count** — The `CURLOPT_WRITEFUNCTION` callback receives `(ptr, size, nmemb, userdata)`. The actual byte count is `size * nmemb`, not just `nmemb`. While libcurl always passes `size = 1` in practice, the spec does not guarantee this. Add an overflow guard (`size <= Int.max / nmemb`) before multiplying. *(Added per security review)*
 
 ---
 
@@ -151,11 +156,23 @@ CurlShims could live as a top-level directory (`CurlShims/`) rather than nested 
 - [ ] Configure `SWIFT_OBJC_BRIDGING_HEADER` build setting
 - [ ] Add `HEADER_SEARCH_PATHS` for curl-apple headers
 - [ ] Extract `cacert.pem` from `curl.framework/Resources/cacert.pem`, add to app bundle
-- [ ] Ensure `curl_global_init(CURL_GLOBAL_ALL)` runs before any handle creation — use a `static let` inside `CurlHTTPClient`:
+- [ ] Add build-phase script to verify `cacert.pem` integrity:
+  - Compute SHA-256 of the bundled `cacert.pem`
+  - Compare against a pinned hash stored in a `CACERT_SHA256` file in the repo
+  - Fail the build if hashes don't match (prevents silent tampering via compromised xcframework download)
+  - Update the pinned hash when intentionally updating curl-apple
+- [ ] Ensure `curl_global_init(CURL_GLOBAL_ALL)` runs before any handle creation — store the result and check it:
   ```swift
-  private static let globalInit: Void = { curl_global_init(Int(CURL_GLOBAL_ALL)) }()
+  private static let globalInitResult: CURLcode = curl_global_init(Int(CURL_GLOBAL_ALL))
+
+  init() throws {
+      _ = Self.globalInitResult  // trigger lazy init (Swift static let = dispatch_once)
+      guard Self.globalInitResult == CURLE_OK else {
+          throw HTTPClientError.curlInitFailed
+      }
+  }
   ```
-  Reference this in `CurlHTTPClient.init()` to trigger it exactly once.
+  This pattern stores the `CURLcode` return value and checks it in `init()`, enabling URLSession fallback on failure.
 - [ ] Write a smoke test: create a curl handle, set a URL, clean up — verify it compiles and links
 
 **Files created/modified:**
@@ -198,20 +215,25 @@ CurlShims could live as a top-level directory (`CurlShims/`) rather than nested 
   - URL: `CURLOPT_URL`
   - HTTP method: `CURLOPT_CUSTOMREQUEST`
   - Headers: `CURLOPT_HTTPHEADER` via `curl_slist_append` — scope `defer { curl_slist_free_all(headerList) }` to encompass `curl_easy_perform` (libcurl does NOT copy header strings)
+  - Input sanitization: Add `sanitizeForCurl()` helper that strips `\r`, `\n`, and `\0` from all strings crossing the Swift/C boundary. Apply to: header keys/values before `curl_slist_append`, URL string before `CURLOPT_URL`, auth credentials. For URLs, also reject strings containing `\0` with `HTTPClientError.invalidURL`. This replaces URLSession's implicit `URLRequest.setValue` CRLF stripping that is lost in the engine swap.
   - Body: `CURLOPT_COPYPOSTFIELDS` + `CURLOPT_POSTFIELDSIZE_LARGE` — libcurl copies data internally, no lifetime pinning needed *(changed from POSTFIELDS)*
   - Follow redirects: `CURLOPT_FOLLOWLOCATION` + `CURLOPT_MAXREDIRS = 10`
-  - Timeout: `CURLOPT_TIMEOUT` (30s request), `CURLOPT_CONNECTTIMEOUT` (10s connect)
+  - Timeout: `CURLOPT_TIMEOUT = 300` (total wall-clock limit, matches URLSession's `timeoutIntervalForResource`), `CURLOPT_CONNECTTIMEOUT = 10` (connect phase limit), `CURLOPT_LOW_SPEED_LIMIT = 1` + `CURLOPT_LOW_SPEED_TIME = 30` (idle timeout — abort if <1 byte/sec for 30s, replacing URLSession's `timeoutIntervalForRequest`). Read `request.timeoutInterval` for the low-speed time if set. *(updated per spec flow review)*
   - CA bundle: `CURLOPT_CAINFO` pointing to bundled `cacert.pem` (fail fast with descriptive error if path not found)
   - Compression: `CURLOPT_ACCEPT_ENCODING` = `""` (all supported)
   - Safety: `CURLOPT_NOSIGNAL = 1` (prevent SIGALRM in multithreaded context)
+  - Performance: `CURLOPT_BUFFERSIZE = 256 * 1024` (256KB receive buffer — reduces callback invocations for large responses vs. default 16KB) *(added per performance review)*
+  - Performance: `CURLOPT_MAXCONNECTS = 20` (connection pool size — allows reuse across requests in the same session) *(added per performance review)*
   - Security: `CURLOPT_PROTOCOLS_STR = "http,https"` (prevent file://, ftp://, gopher:// protocol abuse) *(added)*
   - Security: `CURLOPT_SSLVERSION = CURL_SSLVERSION_TLSv1_2` (prevent TLS downgrade) *(added)*
+  - Security: `CURLOPT_SSL_VERIFYPEER = 1` and `CURLOPT_SSL_VERIFYHOST = 2` — explicit TLS verification (defense in depth; don't rely on defaults which could be altered by `curl_easy_reset`) *(added per security review)*
+  - Security: `CURLOPT_REDIR_PROTOCOLS_STR = "http,https"` — prevent redirect from HTTPS to `gopher://`, `file:///`, etc. for SSRF protection *(added per security review)*
   - Safety: `CURLOPT_MAXFILESIZE_LARGE = 100 * 1024 * 1024` (100MB response limit) *(added)*
 - [ ] Implement response collection via `CURLOPT_WRITEFUNCTION`:
   - Non-capturing `@convention(c)` callback
   - `CurlTransferContext` class passed via `CURLOPT_WRITEDATA` using `Unmanaged.passRetained(context).toOpaque()` — call `Unmanaged.fromOpaque(ptr).takeRetainedValue()` after perform completes to balance the retain *(updated per security review)*
   - Pre-allocate `Data(capacity: 65_536)` for response buffer to reduce reallocation churn *(added per performance review)*
-  - Dual-path: buffer in `Data` for small responses, stream to temp file for >1MB
+  - Dual-path: buffer in `Data` for small responses, stream to temp file for >1MB. Create temp files with `0o600` permissions (owner read/write only) using `FileManager.default.createFile(atPath:contents:attributes: [.posixPermissions: 0o600])`. Clean up temp files in the error path — if `curl_easy_perform` fails after streaming to a temp file, close the `FileHandle` and delete the file.
 - [ ] Implement header collection via `CURLOPT_HEADERFUNCTION`:
   - Separate callback collecting response headers into `[String: String]`
 - [ ] Implement async bridging:
@@ -232,11 +254,14 @@ CurlShims could live as a top-level directory (`CurlShims/`) rather than nested 
   - `CURLE_URL_MALFORMAT` → `HTTPClientError.invalidURL`
   - `CURLE_COULDNT_RESOLVE_HOST` → `HTTPClientError.networkError` with "Could not resolve host"
   - `CURLE_COULDNT_CONNECT` → `HTTPClientError.networkError` with "Could not connect to server"
-  - `CURLE_OPERATION_TIMEDOUT` → `HTTPClientError.networkError` with "Request timed out"
+  - `CURLE_OPERATION_TIMEDOUT` → `HTTPClientError.timeout` (new enum case — enables engine-agnostic timeout detection in ErrorView) *(updated per spec flow review)*
   - `CURLE_SSL_CONNECT_ERROR` / `CURLE_PEER_FAILED_VERIFICATION` → `HTTPClientError.networkError` with "SSL/TLS error: [curl message]"
   - `CURLE_SEND_ERROR` / `CURLE_RECV_ERROR` → `HTTPClientError.networkError` with "Connection interrupted"
   - `CURLE_GOT_NOTHING` → `HTTPClientError.invalidResponse`
+  - `CURLE_FILESIZE_EXCEEDED` → `HTTPClientError.responseTooLarge(maxResponseSize)` (reuses existing enum case instead of generic error) *(added per spec flow review)*
   - All other codes → `HTTPClientError.networkError` with `curl_easy_strerror(code)` message
+  - Note: `curl_easy_strerror()` returns a pointer to a static string — do NOT call `free()` on it. Safe to use directly with `String(cString:)`.
+- [ ] Update `ErrorView` in `ResponseViewerPane.swift` to detect timeouts via `HTTPClientError.timeout` enum case instead of `NSURLErrorTimedOut` (which is URLSession-specific). Also update hint text to remove reference to nonexistent "settings" UI.
 - [ ] Handle partial response data: discard all data on error (match URLSession behavior)
 - [ ] Implement `CurlTransferContext` as a concrete class (mark `@unchecked Sendable` — thread safety managed via `OSAllocatedUnfairLock`):
   - `var responseData: Data` — response body buffer, pre-allocated with `Data(capacity: 65_536)`
@@ -245,11 +270,11 @@ CurlShims could live as a top-level directory (`CurlShims/`) rather than nested 
   - `let didResume: OSAllocatedUnfairLock<Bool>` — prevents double continuation resume *(updated)*
   - `var tempFileHandle: FileHandle?` — for large response streaming
   - `var bytesReceived: Int64` — tracks response size
-  - Lifetime: created before perform, passed to callbacks via `Unmanaged.passRetained`, balanced with `takeRetainedValue` after perform
+  - Lifetime: created before perform, passed to callbacks via `Unmanaged.passRetained`. Inside callbacks: use `takeUnretainedValue` (borrow). After `curl_easy_perform` returns: call `takeRetainedValue` exactly once to balance the retain. **Never use `takeRetainedValue` inside a callback.**
   - Note: `requestBodyData` field removed — `CURLOPT_COPYPOSTFIELDS` makes libcurl copy the data internally *(simplified)*
 - [ ] Extract response metadata via `curl_easy_getinfo`:
   - `CURLINFO_RESPONSE_CODE` → `statusCode`
-  - `CURLINFO_CONTENT_LENGTH_DOWNLOAD_T` → `size`
+  - `size`: Use `context.bytesReceived` (actual bytes from write callback), NOT `CURLINFO_CONTENT_LENGTH_DOWNLOAD_T` (which returns the Content-Length header value and is misleading for HEAD requests, compressed responses, and chunked transfers)
 - [ ] Extract `statusMessage` by parsing the first header line (e.g., `HTTP/1.1 200 OK` → `"OK"`) in the header callback. Fallback to `HTTPURLResponse.localizedString(forStatusCode:)` if parsing fails.
 
 **Files created/modified:**
@@ -284,12 +309,14 @@ func execute(_ request: URLRequest, taskID: UUID) async throws -> HTTPResponse {
 ```
 
 **Error mapping simplification (per simplicity review):**
-Rather than mapping every curl error code individually, use a 3-way branch:
+Rather than mapping every curl error code individually, use a 5-way branch:
 1. `CURLE_OK` → success
 2. `CURLE_ABORTED_BY_CALLBACK` → `CancellationError()`
-3. Everything else → `HTTPClientError.networkError` with `String(cString: curl_easy_strerror(code))`
+3. `CURLE_OPERATION_TIMEDOUT` → `HTTPClientError.timeout` *(added)*
+4. `CURLE_FILESIZE_EXCEEDED` → `HTTPClientError.responseTooLarge(limit)` *(added)*
+5. Everything else → `HTTPClientError.networkError` with `String(cString: curl_easy_strerror(code))`
 
-This covers all cases without maintaining a mapping table. Specific error codes (URL malformat, SSL errors) are already described well by `curl_easy_strerror`.
+This covers all cases without maintaining a mapping table. Specific error codes (URL malformat, SSL errors) are already described well by `curl_easy_strerror`. The timeout and filesize cases are special-cased because they map to dedicated `HTTPClientError` enum cases that enable engine-agnostic UI behavior (timeout hints, size limit messages).
 
 **Write callback data flow:**
 ```
@@ -297,12 +324,16 @@ CURLOPT_WRITEFUNCTION callback
     ↓ (ptr, size, nmemb, userdata)
     Unmanaged<CurlTransferContext>.fromOpaque(userdata).takeUnretainedValue()
     ↓
-    if context.bytesReceived + nmemb > 1MB && tempFileHandle == nil:
+    guard size > 0, nmemb > 0, size <= Int.max / nmemb else { return 0 }  // overflow guard
+    let byteCount = size * nmemb  // spec says size*nmemb, not just nmemb
+    ↓
+    if context.bytesReceived + Int64(byteCount) > 1MB && tempFileHandle == nil:
         flush responseData to temp file, open FileHandle
     ↓
-    append to responseData or write to FileHandle
+    append byteCount bytes to responseData or write to FileHandle
+    context.bytesReceived += Int64(byteCount)
     ↓
-    return nmemb (bytes consumed)
+    return byteCount (bytes consumed)
 ```
 
 ---
@@ -327,7 +358,7 @@ CURLOPT_WRITEFUNCTION callback
   ```
   Note: `Codable` conformance added for potential future persistence *(per architecture review)*.
 - [ ] Add `timingBreakdown: TimingBreakdown?` to `HTTPResponse` struct (with default `= nil` so existing construction sites compile unchanged)
-- [ ] Update `URLSessionHTTPClient` construction sites (lines 77 and 91) to pass `timingBreakdown: nil` explicitly
+- [ ] Verify all `HTTPResponse` construction sites compile with new `timingBreakdown` property (default `= nil` handles existing sites: `URLSessionHTTPClient` lines 77/91 and `ResponseViewerPane` preview at line 299)
 - [ ] Extract timing in `CurlHTTPClient` after `curl_easy_perform` via `curl_easy_getinfo_double`
 - [ ] Compute delta values with `max(0, delta)` clamping (handles floating-point artifacts, non-TLS requests where APPCONNECT_TIME is 0, and connection-reused requests)
 - [ ] Update `ResponseTimingView` in `ResponseViewerPane.swift`:
@@ -340,13 +371,30 @@ CURLOPT_WRITEFUNCTION callback
   - Keep showing total duration and size as before
   - When all DNS+TCP+TLS phases are near-zero (connection reused), show a "connection reused" label instead of empty bars
   - Graceful fallback: if `timingBreakdown` is nil (URLSession engine), show current simple view
+  - **Updated view signature:**
+    ```swift
+    struct ResponseTimingView: View {
+        let duration: TimeInterval
+        let size: Int64
+        let timingBreakdown: TimingBreakdown?  // nil for URLSession engine
+
+        var body: some View {
+            if let breakdown = timingBreakdown {
+                TimingWaterfallView(timing: breakdown)
+            } else {
+                // Existing simple duration + size display
+            }
+        }
+    }
+    ```
+  - **Call site update** in `ResponseContentView` (around line 54): Change `ResponseTimingView(duration: response.duration, size: response.size)` to `ResponseTimingView(duration: response.duration, size: response.size, timingBreakdown: response.timingBreakdown)`
   - **Note**: The timing tab is already wired — `ResponseViewerPane` has Body | Headers | Timing segments
 - [ ] ~~Update `HistoryEntry` to optionally store timing breakdown data~~ **DEFERRED (YAGNI)** — Timing data is only useful for the current response. Persisting it in `HistoryEntry` adds complexity (schema migration, Codable encoding) with no immediate user benefit. Can be added later if users request historical timing comparison. *(per simplicity review)*
 
 **Files created/modified:**
 - `PostKit/PostKit/Services/Protocols/HTTPClientProtocol.swift` (add `TimingBreakdown`, update `HTTPResponse`)
 - `PostKit/PostKit/Services/CurlHTTPClient.swift` (extract timing after perform)
-- `PostKit/PostKit/Views/RequestDetail/ResponseViewer/ResponseViewerPane.swift` (new timing UI)
+- `PostKit/PostKit/Views/RequestDetail/ResponseViewer/ResponseViewerPane.swift` (new timing UI + ResponseTimingView signature update + call site update)
 
 **Success criteria:** Timing waterfall displays accurate per-phase durations. Values match what `curl --write-out` would report for the same request.
 
@@ -407,7 +455,7 @@ If Charts framework is acceptable as a dependency, `BarMark(xStart: .value(...),
   ContentView()
       .environment(\.httpClient, CurlHTTPClient())
   ```
-  - If `CurlHTTPClient.init()` throws (curl_global_init fails), catch and fall back to `URLSessionHTTPClient()` with `os_log` warning
+  - If `CurlHTTPClient.init()` throws (`curl_global_init` returned non-`CURLE_OK`), catch the error, log via `os_log(.error, "curl_global_init failed, falling back to URLSession")`, and use `URLSessionHTTPClient()` instead
   - `HTTPClientKey.defaultValue` remains `URLSessionHTTPClient()` as a safe default for previews/tests
 - [ ] Add `ITSAppUsesNonExemptEncryption` to `Info.plist` — **NOTE: needs legal review** before setting to `YES` or `NO`. Bundled OpenSSL performs encryption; this may qualify for an exemption under TSU Exception (category 5 part 2). *(flagged by security review)*
 - [ ] Write tests in `PostKitTests.swift`:
@@ -423,8 +471,10 @@ If Charts framework is acceptable as a dependency, `BarMark(xStart: .value(...),
 - [ ] Verify App Sandbox compatibility:
   - Test with sandbox enabled (already in entitlements)
   - Confirm `com.apple.security.network.client` entitlement is sufficient for libcurl sockets
+- [ ] Add cleanup sweep on app launch for stale temp files from previous crashed sessions (files matching `postkit-response-*.tmp` older than 24 hours in temp directory)
 - [ ] Test universal binary:
   - Build and run on both Apple Silicon and Intel (Rosetta) if possible
+- [ ] Fix stale cancellation race in `RequestViewModel.sendRequest()`: guard result handling with `guard taskID == self.currentTaskID else { return }` to discard responses/errors from previous cancelled requests. This is a pre-existing bug that becomes user-visible with curl's delayed cancellation (up to `CURLOPT_CONNECTTIMEOUT` seconds during DNS/TCP phase). *(added per spec flow review)*
 
 **Files created/modified:**
 - `PostKit/PostKit/PostKitApp.swift` (inject `CurlHTTPClient` via `.environment`)
@@ -439,7 +489,7 @@ If Charts framework is acceptable as a dependency, `BarMark(xStart: .value(...),
 - OpenSSL is classified as encryption software under U.S. Bureau of Industry and Security (BIS) Export Administration Regulations (EAR)
 - Apps using encryption solely for authentication (not encryption of user data) may qualify for the "mass market" exemption
 - PostKit uses OpenSSL for HTTPS transport — this is standard and widely used in App Store apps
-- Recommendation: Set `ITSAppUsesNonExemptEncryption = YES` and file an annual self-classification report (SNAP/R) with BIS. Many developers set `NO` and are fine, but `YES` + report is the legally correct path when bundling OpenSSL.
+- Recommendation: **Consult legal counsel** to determine the correct `ITSAppUsesNonExemptEncryption` value and whether an annual BIS self-classification report is required. The answer depends on how PostKit uses encryption and whether it qualifies for an exemption.
 - Reference: https://developer.apple.com/help/app-store-connect/reference/export-compliance-documentation-for-encryption/
 
 **Testing strategy:**
@@ -462,7 +512,7 @@ These were identified during specification analysis and are incorporated into th
 | Concurrent `curl_easy_perform` on same handle → undefined behavior | Serial GCD queue serializes all perform calls + fresh handle per request |
 | `CURLOPT_POSTFIELDS` data freed while curl reads it | Use `CURLOPT_COPYPOSTFIELDS` instead — libcurl copies data internally *(updated)* |
 | `CheckedContinuation` double-resume (perform completes + Task cancelled simultaneously) | `OSAllocatedUnfairLock<Bool>` for `didResume` flag gates resume to exactly once *(updated)* |
-| `CURLOPT_XFERINFOFUNCTION` not called during DNS/TCP phase → cancellation delayed | Accepted limitation; `CURLOPT_CONNECTTIMEOUT = 10` bounds the worst case |
+| `CURLOPT_XFERINFOFUNCTION` not called during DNS/TCP phase → cancellation delayed up to 10s | Accepted limitation; `CURLOPT_CONNECTTIMEOUT = 10` bounds the worst case. Mitigated by `taskID` guard in `RequestViewModel` that discards stale cancellation errors. *(updated)* |
 | Negative timing deltas (non-TLS requests, connection reuse, floating-point) | `max(0, delta)` clamping on all computed phases |
 | `statusMessage` not available via `curl_easy_getinfo` | Parse from first line of header callback; fallback to `HTTPURLResponse.localizedString(forStatusCode:)` |
 | `curl_slist` leak or use-after-free | Scope `defer { curl_slist_free_all(headerList) }` to encompass `curl_easy_perform` — libcurl does NOT copy header strings *(updated)* |
@@ -476,6 +526,17 @@ These were identified during specification analysis and are incorporated into th
 | Unbounded response size fills disk *(new)* | `CURLOPT_MAXFILESIZE_LARGE = 100MB` limit |
 | `Unmanaged` pointer freed during callback *(new)* | Use `passRetained` / `takeRetainedValue` pair to ensure context survives |
 | `isCancelled` flag read from GCD queue, written from Swift concurrency *(new)* | `OSAllocatedUnfairLock<Bool>` provides proper synchronization |
+| CRLF/NUL injection in headers/URLs *(new)* | `sanitizeForCurl()` strips `\r\n\0` from all Swift-to-C strings. URLs with `\0` are rejected. Replaces URLSession's implicit sanitization. |
+| Temp files from failed requests accumulate *(new)* | Close `FileHandle` and delete temp file in error path. Sweep stale files on app launch. Permissions set to `0o600`. |
+| SSRF via redirect to non-HTTP protocol *(new)* | `CURLOPT_REDIR_PROTOCOLS_STR = "http,https"` blocks redirects to `file://`, `gopher://`, etc. |
+| Stale cancellation error overwrites new request state *(new)* | Add `guard taskID == self.currentTaskID else { return }` in `RequestViewModel.sendRequest()` Task closure before setting `self.response` or `self.error`. Pre-existing bug worsened by curl's delayed cancellation during DNS/TCP phase. |
+| TLS verification disabled by future refactoring *(new)* | Explicit `CURLOPT_SSL_VERIFYPEER=1` + `CURLOPT_SSL_VERIFYHOST=2` guards against defaults being lost |
+| HEAD request shows misleading response size *(new)* | Use `context.bytesReceived` for `size` field instead of `CURLINFO_CONTENT_LENGTH_DOWNLOAD_T`. HEAD responses have 0 bytes transferred. |
+| Large download killed prematurely by 30s timeout *(new)* | Changed `CURLOPT_TIMEOUT` from 30 to 300 seconds. Use `LOW_SPEED_LIMIT`/`LOW_SPEED_TIME` for idle detection instead. |
+| No `waitsForConnectivity` equivalent *(new)* | libcurl fails immediately when offline (no waiting). This is better UX for an API testing tool (fail fast). Documented as known behavior change. |
+| `URLRequest.timeoutInterval` ignored by curl engine *(new)* | `CurlHTTPClient` reads `request.timeoutInterval` and uses it for `CURLOPT_LOW_SPEED_TIME`. |
+| ErrorView timeout hint never shows with curl *(new)* | Added `HTTPClientError.timeout` case. `ErrorView` matches on enum case instead of `NSURLErrorTimedOut`. |
+| CURLE_FILESIZE_EXCEEDED gives cryptic error *(new)* | Mapped to existing `HTTPClientError.responseTooLarge(Int64)` for clear "Response exceeded 100MB limit" message. |
 
 ## Alternative Approaches Considered
 
@@ -493,7 +554,7 @@ These were identified during specification analysis and are incorporated into th
 
 - [ ] GET, POST, PUT, PATCH, DELETE requests work correctly via libcurl
 - [ ] Custom headers are sent exactly as specified (no hidden additions)
-- [ ] Request body (JSON, raw, form) is sent correctly
+- [ ] Request body (JSON, raw, urlEncoded) is sent correctly (note: `formData` is unimplemented in both engines — out of scope)
 - [ ] Response body is received correctly (small in-memory, large to disk)
 - [ ] Response headers are parsed correctly
 - [ ] Status code and status message are extracted correctly
@@ -502,7 +563,7 @@ These were identified during specification analysis and are incorporated into th
 - [ ] Compression (gzip/deflate/brotli) is handled automatically
 - [ ] SSL verification works by default with bundled CA certificates
 - [ ] All existing curl import functionality (`CurlParser`) continues working
-- [ ] History entries are saved with timing breakdown data
+- [ ] History entries continue to save total duration and response size (timing breakdown persistence deferred per YAGNI)
 
 ### Non-Functional Requirements
 
