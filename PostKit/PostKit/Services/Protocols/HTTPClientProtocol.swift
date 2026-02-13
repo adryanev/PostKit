@@ -1,8 +1,8 @@
 import Foundation
 
 protocol HTTPClientProtocol: Sendable {
-    func execute(_ request: URLRequest) async throws -> HTTPResponse
-    func cancel(taskID: UUID)
+    func execute(_ request: URLRequest, taskID: UUID) async throws -> HTTPResponse
+    func cancel(taskID: UUID) async
 }
 
 struct HTTPResponse: Sendable {

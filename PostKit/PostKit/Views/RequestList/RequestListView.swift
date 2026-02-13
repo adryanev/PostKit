@@ -61,14 +61,7 @@ struct RequestListView: View {
     }
     
     private func duplicateRequest(_ request: HTTPRequest) {
-        let duplicate = HTTPRequest(name: "\(request.name) (Copy)")
-        duplicate.method = request.method
-        duplicate.urlTemplate = request.urlTemplate
-        duplicate.headersData = request.headersData
-        duplicate.queryParamsData = request.queryParamsData
-        duplicate.bodyType = request.bodyType
-        duplicate.bodyContent = request.bodyContent
-        duplicate.authConfigData = request.authConfigData
+        let duplicate = request.duplicated()
         duplicate.collection = collection
         duplicate.sortOrder = collection.requests.count
         modelContext.insert(duplicate)

@@ -6,10 +6,6 @@ struct SelectedRequestKey: FocusedValueKey {
     typealias Value = HTTPRequest
 }
 
-struct SelectedCollectionKey: FocusedValueKey {
-    typealias Value = RequestCollection
-}
-
 // MARK: - Action Keys
 
 struct SendRequestActionKey: FocusedValueKey {
@@ -24,11 +20,6 @@ extension FocusedValues {
     var selectedRequest: HTTPRequest? {
         get { self[SelectedRequestKey.self] }
         set { self[SelectedRequestKey.self] = newValue }
-    }
-
-    var selectedCollection: RequestCollection? {
-        get { self[SelectedCollectionKey.self] }
-        set { self[SelectedCollectionKey.self] = newValue }
     }
 
     var sendRequestAction: (() -> Void)? {

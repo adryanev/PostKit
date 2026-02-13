@@ -1,9 +1,18 @@
 import SwiftUI
 
+private extension Int64 {
+    var formattedBytes: String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: self)
+    }
+}
+
 struct ResponseViewerPane: View {
     let response: HTTPResponse?
     let error: Error?
-    @Binding var activeTab: RequestDetailView.ResponseTab
+    @Binding var activeTab: ResponseTab
     let isLoading: Bool
     
     var body: some View {
@@ -28,7 +37,7 @@ struct ResponseViewerPane: View {
 
 struct ResponseContentView: View {
     let response: HTTPResponse
-    @Binding var activeTab: RequestDetailView.ResponseTab
+    @Binding var activeTab: ResponseTab
     
     var body: some View {
         VStack(spacing: 0) {
@@ -63,7 +72,7 @@ struct ResponseBodyView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
-                    Text("Response is too large to display (\(formatBytes(response.size))).")
+                    Text("Response is too large to display (\(response.size.formattedBytes)).")
                         .font(.caption)
                 }
                 .padding(.horizontal)
@@ -133,13 +142,6 @@ struct ResponseBodyView: View {
         }
         return bodyString
     }
-    
-    private func formatBytes(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useBytes, .useKB, .useMB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
-    }
 }
 
 struct ResponseStatusBar: View {
@@ -160,7 +162,7 @@ struct ResponseStatusBar: View {
             Label("\(String(format: "%.0f", response.duration * 1000)) ms", systemImage: "clock")
                 .foregroundStyle(.secondary)
             
-            Label(formatBytes(response.size), systemImage: "doc")
+            Label(response.size.formattedBytes, systemImage: "doc")
                 .foregroundStyle(.secondary)
             
             Spacer()
@@ -170,7 +172,7 @@ struct ResponseStatusBar: View {
         .padding(.vertical, 8)
         .background(Color(nsColor: .windowBackgroundColor))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Response: \(response.statusCode) \(response.statusMessage), \(String(format: "%.0f", response.duration * 1000)) milliseconds, \(formatBytes(response.size))")
+        .accessibilityLabel("Response: \(response.statusCode) \(response.statusMessage), \(String(format: "%.0f", response.duration * 1000)) milliseconds, \(response.size.formattedBytes)")
     }
     
     private var statusColor: Color {
@@ -181,13 +183,6 @@ struct ResponseStatusBar: View {
         case 500..<600: .red
         default: .gray
         }
-    }
-    
-    private func formatBytes(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useBytes, .useKB, .useMB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
     }
 }
 
@@ -239,7 +234,7 @@ struct ResponseTimingView: View {
                 HStack {
                     Text("Response Size")
                     Spacer()
-                    Text(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                    Text(size.formattedBytes)
                         .fontWeight(.medium)
                 }
             }

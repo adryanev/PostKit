@@ -10,9 +10,7 @@ final class HistoryEntry {
     var statusCode: Int
     var responseTime: TimeInterval
     var responseSize: Int64
-    var requestSnapshot: Data?
-    var responseFilePath: String?
-    
+
     var request: HTTPRequest?
     
     @Transient var method: HTTPMethod {

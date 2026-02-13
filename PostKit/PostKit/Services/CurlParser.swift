@@ -128,8 +128,10 @@ final class CurlParser: Sendable {
                 i += 1
                 
             default:
-                if !token.hasPrefix("-") && token.hasPrefix("http") {
-                    result.url = token
+                if !token.hasPrefix("-") && (token.hasPrefix("http://") || token.hasPrefix("https://")) {
+                    if URL(string: token) != nil {
+                        result.url = token
+                    }
                 }
                 i += 1
             }
@@ -147,9 +149,15 @@ final class CurlParser: Sendable {
         var current = ""
         var inSingleQuote = false
         var inDoubleQuote = false
-        
+        var escapeNext = false
+
         for char in command {
-            if char == "'" && !inDoubleQuote {
+            if escapeNext {
+                current.append(char)
+                escapeNext = false
+            } else if char == "\\" && (inDoubleQuote || inSingleQuote) {
+                escapeNext = true
+            } else if char == "'" && !inDoubleQuote {
                 inSingleQuote.toggle()
             } else if char == "\"" && !inSingleQuote {
                 inDoubleQuote.toggle()
@@ -162,11 +170,11 @@ final class CurlParser: Sendable {
                 current.append(char)
             }
         }
-        
+
         if !current.isEmpty {
             tokens.append(current)
         }
-        
+
         return tokens
     }
 }

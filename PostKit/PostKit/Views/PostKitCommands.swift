@@ -3,7 +3,6 @@ import SwiftData
 
 struct PostKitCommands: Commands {
     @FocusedValue(\.selectedRequest) var selectedRequest
-    @FocusedValue(\.selectedCollection) var selectedCollection
     @FocusedValue(\.sendRequestAction) var sendRequestAction
     @FocusedValue(\.cancelRequestAction) var cancelRequestAction
 
@@ -42,14 +41,7 @@ struct PostKitCommands: Commands {
     private func duplicateRequest() {
         guard let source = selectedRequest,
               let collection = source.collection else { return }
-        let duplicate = HTTPRequest(name: "\(source.name) (Copy)")
-        duplicate.method = source.method
-        duplicate.urlTemplate = source.urlTemplate
-        duplicate.headersData = source.headersData
-        duplicate.queryParamsData = source.queryParamsData
-        duplicate.bodyType = source.bodyType
-        duplicate.bodyContent = source.bodyContent
-        duplicate.authConfigData = source.authConfigData
+        let duplicate = source.duplicated()
         duplicate.collection = collection
         duplicate.sortOrder = collection.requests.count
         collection.requests.append(duplicate)

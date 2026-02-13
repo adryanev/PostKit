@@ -38,7 +38,18 @@ struct ExportedKeyValuePair: Codable {
     let isEnabled: Bool
 }
 
+@MainActor
 final class FileExporter {
+    // Header keys whose values are stripped on export to prevent credential leaks.
+    // Comparison is case-insensitive.
+    private static let sensitiveHeaderKeys: Set<String> = [
+        "authorization",
+        "x-api-key",
+        "x-auth-token",
+        "proxy-authorization",
+        "cookie",
+    ]
+
     func exportCollection(_ collection: RequestCollection) throws -> URL {
         var exported = ExportedCollection(
             name: collection.name,
@@ -46,10 +57,18 @@ final class FileExporter {
             requests: [],
             environments: []
         )
-        
+
         for request in collection.requests {
+            // Auth headers are stripped for security — sensitive header values
+            // are replaced with "[REDACTED]" so exported files never contain
+            // credentials by default.
             let headers = [KeyValuePair].decode(from: request.headersData).map {
-                ExportedKeyValuePair(key: $0.key, value: $0.value, isEnabled: $0.isEnabled)
+                let isSensitive = Self.sensitiveHeaderKeys.contains($0.key.lowercased())
+                return ExportedKeyValuePair(
+                    key: $0.key,
+                    value: isSensitive ? "[REDACTED]" : $0.value,
+                    isEnabled: $0.isEnabled
+                )
             }
             
             let queryParams = [KeyValuePair].decode(from: request.queryParamsData).map {

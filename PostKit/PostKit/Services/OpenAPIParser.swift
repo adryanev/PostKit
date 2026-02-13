@@ -4,26 +4,17 @@ struct OpenAPIEndpoint {
     var name: String
     var method: HTTPMethod
     var path: String
-    var description: String?
     var parameters: [OpenAPIParameter]
     var requestBody: OpenAPIRequestBody?
-    var responses: [Int: String]
-    var tags: [String]
 }
 
 struct OpenAPIParameter {
     var name: String
     var location: String
-    var required: Bool
-    var description: String?
-    var schema: [String: Any]?
 }
 
 struct OpenAPIRequestBody {
-    var description: String?
-    var required: Bool
     var contentType: String
-    var schema: [String: Any]?
 }
 
 enum OpenAPIParserError: LocalizedError {
@@ -88,9 +79,7 @@ final class OpenAPIParser: Sendable {
                     
                     let operationId = methodValue["operationId"] as? String
                     let summary = methodValue["summary"] as? String
-                    let description = methodValue["description"] as? String
-                    let tags = methodValue["tags"] as? [String] ?? []
-                    
+
                     let name = operationId ?? summary ?? "\(method.rawValue) \(path)"
                     
                     var parameters: [OpenAPIParameter] = []
@@ -98,10 +87,7 @@ final class OpenAPIParser: Sendable {
                         for param in paramsArray {
                             parameters.append(OpenAPIParameter(
                                 name: param["name"] as? String ?? "",
-                                location: param["in"] as? String ?? "query",
-                                required: param["required"] as? Bool ?? false,
-                                description: param["description"] as? String,
-                                schema: param["schema"] as? [String: Any]
+                                location: param["in"] as? String ?? "query"
                             ))
                         }
                     }
@@ -110,33 +96,15 @@ final class OpenAPIParser: Sendable {
                     if let requestBodyDict = methodValue["requestBody"] as? [String: Any],
                        let content = requestBodyDict["content"] as? [String: [String: Any]] {
                         let contentType = content.keys.first ?? "application/json"
-                        let schema = content[contentType]?["schema"] as? [String: Any]
-                        requestBody = OpenAPIRequestBody(
-                            description: requestBodyDict["description"] as? String,
-                            required: requestBodyDict["required"] as? Bool ?? false,
-                            contentType: contentType,
-                            schema: schema
-                        )
-                    }
-                    
-                    var responses: [Int: String] = [:]
-                    if let responsesDict = methodValue["responses"] as? [String: [String: Any]] {
-                        for (code, response) in responsesDict {
-                            if let statusCode = Int(code) {
-                                responses[statusCode] = response["description"] as? String
-                            }
-                        }
+                        requestBody = OpenAPIRequestBody(contentType: contentType)
                     }
                     
                     endpoints.append(OpenAPIEndpoint(
                         name: name,
                         method: method,
                         path: path,
-                        description: description ?? summary,
                         parameters: parameters,
-                        requestBody: requestBody,
-                        responses: responses,
-                        tags: tags
+                        requestBody: requestBody
                     ))
                 }
             }

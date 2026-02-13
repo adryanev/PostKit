@@ -4,9 +4,7 @@ import UniformTypeIdentifiers
 
 @main
 struct PostKitApp: App {
-    let httpClient: HTTPClientProtocol
-    
-    @State private var showingCurlImport = false
+    @State private var curlImportCollection: RequestCollection?
     @State private var showingOpenAPIImport = false
     @State private var showingImportCollection = false
     
@@ -28,15 +26,11 @@ struct PostKitApp: App {
         }
     }()
 
-    init() {
-        self.httpClient = URLSessionHTTPClient()
-    }
-
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .sheet(isPresented: $showingCurlImport) {
-                    CurlImportSheet(collection: nil)
+                .sheet(item: $curlImportCollection) { collection in
+                    CurlImportSheet(collection: collection)
                 }
                 .sheet(isPresented: $showingOpenAPIImport) {
                     OpenAPIImportSheet()
@@ -52,12 +46,11 @@ struct PostKitApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
-        .environment(\.httpClient, httpClient)
         .commands {
             PostKitCommands()
             CommandGroup(after: .newItem) {
                 Button("Import cURL Command...") {
-                    showingCurlImport = true
+                    curlImportCollection = fetchOrCreateImportCollection()
                 }
                 .keyboardShortcut("i", modifiers: [.command, .shift])
                 
@@ -76,6 +69,20 @@ struct PostKitApp: App {
         }
     }
     
+    private func fetchOrCreateImportCollection() -> RequestCollection {
+        let context = sharedModelContainer.mainContext
+        let descriptor = FetchDescriptor<RequestCollection>(
+            predicate: #Predicate { $0.name == "Imported" }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            return existing
+        }
+        let collection = RequestCollection(name: "Imported")
+        context.insert(collection)
+        try? context.save()
+        return collection
+    }
+
     private func importCollection(from url: URL) throws {
         let exporter = FileExporter()
         let context = sharedModelContainer.mainContext

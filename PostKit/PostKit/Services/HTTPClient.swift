@@ -3,7 +3,7 @@ import Foundation
 actor URLSessionHTTPClient: HTTPClientProtocol {
     private let session: URLSession
     private var activeTasks: [UUID: URLSessionTask] = [:]
-    
+
     private let maxMemorySize: Int64 = 1_000_000 // 1MB
 
     init(configuration: URLSessionConfiguration = .default) {
@@ -14,13 +14,14 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
         self.session = URLSession(configuration: config)
     }
 
-    func execute(_ request: URLRequest) async throws -> HTTPResponse {
-        let taskID = UUID()
+    func execute(_ request: URLRequest, taskID: UUID) async throws -> HTTPResponse {
         let start = CFAbsoluteTimeGetCurrent()
 
-        return try await withTaskCancellationHandler {
+        // Use download(for:) which streams the response to a temporary file on disk,
+        // avoiding loading the entire response body into memory at once.
+        let (tempDownloadURL, response): (URL, URLResponse) = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                let task = session.dataTask(with: request) { data, response, error in
+                let task = session.downloadTask(with: request) { url, response, error in
                     Task { await self.removeTask(taskID) }
 
                     if let error = error {
@@ -32,50 +33,20 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                         return
                     }
 
-                    guard let httpResponse = response as? HTTPURLResponse,
-                          let data = data else {
+                    guard let url = url, let response = response else {
                         continuation.resume(throwing: HTTPClientError.invalidResponse)
                         return
                     }
 
-                    let duration = CFAbsoluteTimeGetCurrent() - start
-                    let headers = httpResponse.allHeaderFields.reduce(into: [String: String]()) { result, pair in
-                        if let key = pair.key as? String, let value = pair.value as? String {
-                            result[key] = value
-                        }
-                    }
-                    
-                    let size = Int64(data.count)
-                    
-                    if size > self.maxMemorySize {
-                        // Stream to disk
-                        let tempURL = FileManager.default.temporaryDirectory
-                            .appendingPathComponent(UUID().uuidString)
-                        
-                        do {
-                            try data.write(to: tempURL)
-                            continuation.resume(returning: HTTPResponse(
-                                statusCode: httpResponse.statusCode,
-                                statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
-                                headers: headers,
-                                body: nil,
-                                bodyFileURL: tempURL,
-                                duration: duration,
-                                size: size
-                            ))
-                        } catch {
-                            continuation.resume(throwing: HTTPClientError.networkError(error))
-                        }
-                    } else {
-                        continuation.resume(returning: HTTPResponse(
-                            statusCode: httpResponse.statusCode,
-                            statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
-                            headers: headers,
-                            body: data,
-                            bodyFileURL: nil,
-                            duration: duration,
-                            size: size
-                        ))
+                    // Move the file to a stable location before the callback returns,
+                    // because the system deletes the temporary download file immediately after.
+                    let stableURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString)
+                    do {
+                        try FileManager.default.moveItem(at: url, to: stableURL)
+                        continuation.resume(returning: (stableURL, response))
+                    } catch {
+                        continuation.resume(throwing: HTTPClientError.networkError(error))
                     }
                 }
 
@@ -84,6 +55,47 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
             }
         } onCancel: {
             Task { await self.cancel(taskID: taskID) }
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            try? FileManager.default.removeItem(at: tempDownloadURL)
+            throw HTTPClientError.invalidResponse
+        }
+
+        let duration = CFAbsoluteTimeGetCurrent() - start
+        let headers = httpResponse.allHeaderFields.reduce(into: [String: String]()) { result, pair in
+            if let key = pair.key as? String, let value = pair.value as? String {
+                result[key] = value
+            }
+        }
+
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: tempDownloadURL.path)
+        let size = (fileAttributes[.size] as? Int64) ?? 0
+
+        if size > maxMemorySize {
+            // Large response: keep on disk, return file URL
+            return HTTPResponse(
+                statusCode: httpResponse.statusCode,
+                statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
+                headers: headers,
+                body: nil,
+                bodyFileURL: tempDownloadURL,
+                duration: duration,
+                size: size
+            )
+        } else {
+            // Small response: read into memory, clean up temp file
+            let data = try Data(contentsOf: tempDownloadURL)
+            try? FileManager.default.removeItem(at: tempDownloadURL)
+            return HTTPResponse(
+                statusCode: httpResponse.statusCode,
+                statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
+                headers: headers,
+                body: data,
+                bodyFileURL: nil,
+                duration: duration,
+                size: size
+            )
         }
     }
 

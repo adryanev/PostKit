@@ -51,7 +51,6 @@ struct ContentView: View {
             }
         }
         .focusedValue(\.selectedRequest, selectedRequest)
-        .focusedValue(\.selectedCollection, selectedCollection)
         .onKeyPress(.tab) {
             if NSEvent.modifierFlags.contains(.control) {
                 cycleFocus()
@@ -59,8 +58,8 @@ struct ContentView: View {
             }
             return .ignored
         }
-        .onChange(of: selectedRequest) {
-            if let old = selectedRequest {
+        .onChange(of: selectedRequest) { oldValue, newValue in
+            if let old = oldValue {
                 old.updatedAt = Date()
             }
         }

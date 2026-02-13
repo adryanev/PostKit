@@ -5,7 +5,7 @@ struct CurlImportSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
-    let collection: RequestCollection?
+    let collection: RequestCollection
     
     @State private var curlCommand = ""
     @State private var parseError: String?
@@ -40,7 +40,7 @@ struct CurlImportSheet: View {
                     HStack {
                         Text(preview.method.rawValue)
                             .fontWeight(.semibold)
-                            .foregroundStyle(methodColor(for: preview.method))
+                            .foregroundStyle(preview.method.color)
                         Text(preview.url)
                             .lineLimit(1)
                     }
@@ -113,28 +113,16 @@ struct CurlImportSheet: View {
         if let auth = parsed.authConfig {
             request.authConfig = auth
         }
-        
-        if let collection = collection {
-            request.collection = collection
-            request.sortOrder = collection.requests.count
-        }
-        
+
+        request.collection = collection
+        request.sortOrder = collection.requests.count
+
         modelContext.insert(request)
         dismiss()
-    }
-    
-    private func methodColor(for method: HTTPMethod) -> Color {
-        switch method {
-        case .get: .green
-        case .post: .orange
-        case .put: .blue
-        case .patch: .purple
-        case .delete: .red
-        case .head, .options: .gray
-        }
     }
 }
 
 #Preview {
-    CurlImportSheet(collection: nil)
+    CurlImportSheet(collection: RequestCollection(name: "Preview"))
+        .modelContainer(for: RequestCollection.self, inMemory: true)
 }

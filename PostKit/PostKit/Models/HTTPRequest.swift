@@ -32,13 +32,25 @@ final class HTTPRequest {
         set { bodyTypeRaw = newValue.rawValue }
     }
     
+    @Transient private var _cachedAuthConfig: AuthConfig?
+    @Transient private var _authConfigDataSnapshot: Data?
+
     @Transient var authConfig: AuthConfig {
         get {
+            // Return cached value if underlying data hasn't changed
+            if let cached = _cachedAuthConfig, _authConfigDataSnapshot == authConfigData {
+                return cached
+            }
             guard let data = authConfigData else { return AuthConfig() }
-            return (try? JSONDecoder().decode(AuthConfig.self, from: data)) ?? AuthConfig()
+            let config = (try? JSONDecoder().decode(AuthConfig.self, from: data)) ?? AuthConfig()
+            _cachedAuthConfig = config
+            _authConfigDataSnapshot = authConfigData
+            return config
         }
         set {
+            _cachedAuthConfig = newValue
             authConfigData = try? JSONEncoder().encode(newValue)
+            _authConfigDataSnapshot = authConfigData
         }
     }
     
@@ -51,5 +63,17 @@ final class HTTPRequest {
         self.sortOrder = 0
         self.createdAt = Date()
         self.updatedAt = Date()
+    }
+
+    func duplicated() -> HTTPRequest {
+        let copy = HTTPRequest(name: "\(name) (Copy)")
+        copy.methodRaw = methodRaw
+        copy.urlTemplate = urlTemplate
+        copy.headersData = headersData
+        copy.queryParamsData = queryParamsData
+        copy.bodyTypeRaw = bodyTypeRaw
+        copy.bodyContent = bodyContent
+        copy.authConfigData = authConfigData
+        return copy
     }
 }

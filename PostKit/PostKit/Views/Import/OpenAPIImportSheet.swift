@@ -104,7 +104,7 @@ struct OpenAPIImportSheet: View {
                                 
                                 Text(endpoint.method.rawValue)
                                     .fontWeight(.semibold)
-                                    .foregroundStyle(methodColor(for: endpoint.method))
+                                    .foregroundStyle(endpoint.method.color)
                                     .frame(width: 60)
                                 
                                 Text(endpoint.path)
@@ -206,17 +206,6 @@ struct OpenAPIImportSheet: View {
         }
         
         dismiss()
-    }
-    
-    private func methodColor(for method: HTTPMethod) -> Color {
-        switch method {
-        case .get: .green
-        case .post: .orange
-        case .put: .blue
-        case .patch: .purple
-        case .delete: .red
-        case .head, .options: .gray
-        }
     }
 }
 
