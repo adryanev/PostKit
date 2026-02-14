@@ -7,7 +7,9 @@ struct CollectionRow: View {
     @Binding var selectedRequest: HTTPRequest?
     @Environment(\.modelContext) private var modelContext
     @State private var isExpanded = true
-    @State private var isRenaming = false
+    @State private var isRenamingCollection = false
+    @State private var isRenamingRequest = false
+    @State private var renamingRequest: HTTPRequest?
     @State private var newName = ""
     @State private var exportError: String?
 
@@ -29,33 +31,41 @@ struct CollectionRow: View {
                     .lineLimit(1)
                 Spacer()
             }
+            .contextMenu {
+                Button("New Request") {
+                    createRequest()
+                }
+                Button("New Folder") {
+                    createFolder()
+                }
+                Divider()
+                Button("Export Collection...") {
+                    exportCollection()
+                }
+                Divider()
+                Button("Rename") {
+                    newName = collection.name
+                    isRenamingCollection = true
+                }
+                Button("Delete", role: .destructive) {
+                    deleteCollection(collection)
+                }
+            }
         }
-        .contextMenu {
-            Button("New Request") {
-                createRequest()
-            }
-            Button("New Folder") {
-                createFolder()
-            }
-            Divider()
-            Button("Export Collection...") {
-                exportCollection()
-            }
-            Divider()
-            Button("Rename") {
-                newName = collection.name
-                isRenaming = true
-            }
-            Button("Delete", role: .destructive) {
-                deleteCollection(collection)
-            }
-        }
-        .alert("Rename Collection", isPresented: $isRenaming) {
+        .alert("Rename Collection", isPresented: $isRenamingCollection) {
             TextField("Name", text: $newName)
             Button("Cancel", role: .cancel) {}
             Button("Rename") {
                 collection.name = newName
                 collection.updatedAt = Date()
+            }
+        }
+        .alert("Rename Request", isPresented: $isRenamingRequest) {
+            TextField("Name", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                renamingRequest?.name = newName
+                renamingRequest?.updatedAt = Date()
             }
         }
         .alert("Export Failed", isPresented: .init(
@@ -75,9 +85,15 @@ struct CollectionRow: View {
         RequestRow(request: request, compact: true)
             .tag(request)
             .contextMenu {
+                Button("Rename") {
+                    renamingRequest = request
+                    newName = request.name
+                    isRenamingRequest = true
+                }
                 Button("Duplicate") {
                     duplicateRequest(request)
                 }
+                Divider()
                 Button("Delete", role: .destructive) {
                     deleteRequest(request)
                 }
@@ -138,8 +154,10 @@ struct FolderRow: View {
     let folder: Folder
     @Binding var selectedRequest: HTTPRequest?
     @Environment(\.modelContext) private var modelContext
+    @State private var isRenamingFolder = false
+    @State private var isRenamingRequest = false
+    @State private var renamingRequest: HTTPRequest?
     @State private var isExpanded = true
-    @State private var isRenaming = false
     @State private var newName = ""
 
     var body: some View {
@@ -148,9 +166,15 @@ struct FolderRow: View {
                 RequestRow(request: request, compact: true)
                     .tag(request)
                     .contextMenu {
+                        Button("Rename") {
+                            renamingRequest = request
+                            newName = request.name
+                            isRenamingRequest = true
+                        }
                         Button("Duplicate") {
                             duplicateRequest(request)
                         }
+                        Divider()
                         Button("Delete", role: .destructive) {
                             deleteRequest(request)
                         }
@@ -164,28 +188,36 @@ struct FolderRow: View {
                     .lineLimit(1)
                 Spacer()
             }
+            .contextMenu {
+                Button("New Request") {
+                    let request = HTTPRequest(name: "New Request")
+                    request.folder = folder
+                    request.collection = folder.collection
+                    modelContext.insert(request)
+                }
+                Divider()
+                Button("Rename") {
+                    newName = folder.name
+                    isRenamingFolder = true
+                }
+                Button("Delete", role: .destructive) {
+                    deleteFolder(folder)
+                }
+            }
         }
-        .contextMenu {
-            Button("New Request") {
-                let request = HTTPRequest(name: "New Request")
-                request.folder = folder
-                request.collection = folder.collection
-                modelContext.insert(request)
-            }
-            Divider()
-            Button("Rename") {
-                newName = folder.name
-                isRenaming = true
-            }
-            Button("Delete", role: .destructive) {
-                deleteFolder(folder)
-            }
-        }
-        .alert("Rename Folder", isPresented: $isRenaming) {
+        .alert("Rename Folder", isPresented: $isRenamingFolder) {
             TextField("Name", text: $newName)
             Button("Cancel", role: .cancel) {}
             Button("Rename") {
                 folder.name = newName
+            }
+        }
+        .alert("Rename Request", isPresented: $isRenamingRequest) {
+            TextField("Name", text: $newName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename") {
+                renamingRequest?.name = newName
+                renamingRequest?.updatedAt = Date()
             }
         }
     }
