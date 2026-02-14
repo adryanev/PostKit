@@ -2,7 +2,7 @@
 
 > **Last updated:** 2026-02-13
 > **Applies to:** PostKit v1.0 (MVP)
-> **Total decisions:** 18
+> **Total decisions:** 19
 
 This document consolidates all significant architecture decisions made during the development of PostKit, a native macOS API client. Each decision follows the standard ADR format: Context, Decision, Alternatives Considered, and Consequences.
 
@@ -14,7 +14,7 @@ This document consolidates all significant architecture decisions made during th
 |---|----------|
 | [001](#adr-001-swiftui-over-uikitappkit) | SwiftUI over UIKit/AppKit |
 | [002](#adr-002-swiftdata-over-coredata) | SwiftData over CoreData |
-| [003](#adr-003-zero-external-dependencies) | Zero external dependencies |
+| [003](#adr-003-minimal-external-dependencies) | Minimal external dependencies |
 | [004](#adr-004-mvvm-over-tcaviper) | MVVM over TCA/VIPER |
 | [005](#adr-005-actor-based-http-client) | Actor-based HTTP client |
 | [006](#adr-006-keychain-for-secrets) | Keychain for secrets |
@@ -30,6 +30,7 @@ This document consolidates all significant architecture decisions made during th
 | [016](#adr-016-keyvaluepair-data-encoding-for-swiftdata) | KeyValuePair Data encoding for SwiftData |
 | [017](#adr-017-app-sandbox-with-minimal-entitlements) | App Sandbox with minimal entitlements |
 | [018](#adr-018-macos-14-sonoma-minimum-target) | macOS 14+ (Sonoma) minimum target |
+| [019](#adr-019-libcurl-http-client-engine) | libcurl HTTP Client Engine |
 
 ---
 
@@ -87,31 +88,40 @@ This document consolidates all significant architecture decisions made during th
 
 ---
 
-### ADR-003: Zero External Dependencies
+### ADR-003: Minimal External Dependencies
 
-**Status:** Accepted
+**Status:** Supersedes "Zero External Dependencies" (2026-02-14)
 
-**Context:** PostKit is a developer tool that handles sensitive data (API keys, auth tokens). Supply-chain attacks via compromised dependencies are a real risk for this category of software.
+**Context:** PostKit is a developer tool that handles sensitive data (API keys, auth tokens). Supply-chain attacks via compromised dependencies are a real risk for this category of software. However, a strict zero-dependency policy increases development effort for features where well-maintained, narrowly-scoped libraries provide significant value (e.g., YAML parsing, syntax highlighting). The goal is to minimize attack surface while allowing pragmatic exceptions.
 
-**Decision:** Ship with zero third-party packages. All functionality is built on Apple frameworks: Foundation, SwiftUI, SwiftData, Security, UniformTypeIdentifiers.
+**Decision:** Prefer Apple frameworks for core functionality. Third-party dependencies are permitted when **all** of the following criteria are met:
+
+1. **No viable Apple framework alternative** — the functionality is not reasonably achievable with Foundation, SwiftUI, SwiftData, Security, or other system frameworks
+2. **Narrowly scoped** — the library does one thing well, with minimal transitive dependencies
+3. **Well maintained** — active maintenance, responsive to security issues, broad adoption in the Swift ecosystem
+4. **Added via Swift Package Manager** — no CocoaPods, Carthage, or vendored binaries
+
+Each new dependency must be justified in this ADR or in a new ADR entry.
 
 **Alternatives Considered:**
-- **Alamofire** for HTTP: Unnecessary overhead — `URLSession` handles all needed HTTP methods, headers, auth, and streaming.
-- **KeychainAccess** for Keychain: Wrapper library, but the Security framework API is manageable at our scale (~100 LOC).
-- **SwiftyJSON** for JSON parsing: `Codable` and `JSONSerialization` cover all parsing needs (cURL, OpenAPI, export/import).
+- **Zero dependencies (previous policy):** Maximizes security and build simplicity, but increases boilerplate for features where mature libraries exist (e.g., writing a YAML parser from scratch).
+- **Unrestricted dependencies:** Faster feature development but unacceptable supply-chain risk for a tool that handles API credentials.
 
 **Consequences:**
-- (+) Zero supply-chain attack surface
-- (+) No dependency version conflicts or breaking updates
-- (+) Faster build times — no SPM resolution step
-- (+) Smaller binary size
-- (-) More boilerplate for features that libraries abstract (e.g., Keychain wrapper)
-- (-) Must implement utilities that are commonly provided by packages (e.g., cURL parser)
+- (+) Pragmatic — avoids reinventing well-solved problems
+- (+) Still minimal attack surface — dependencies must pass the 4-criteria gate
+- (+) Each dependency is explicitly justified and auditable
+- (+) SPM-only keeps dependency management consistent
+- (-) Requires discipline — each addition needs a justification check
+- (-) Introduces (minimal) SPM resolution time and potential version conflicts
+
+**Current Dependencies:**
+- *None yet* — Apple frameworks still cover all current functionality
 
 **References:**
-- `PostKit/Services/KeychainManager.swift` — Direct Security framework usage
-- `PostKit/Services/CurlParser.swift` — Custom cURL tokenizer/parser
-- `PostKit/Services/OpenAPIParser.swift` — Custom OpenAPI 3.x parser
+- `PostKit/Services/KeychainManager.swift` — Direct Security framework usage (no KeychainAccess needed)
+- `PostKit/Services/CurlParser.swift` — Custom cURL tokenizer/parser (no third-party parser needed)
+- `PostKit/Services/OpenAPIParser.swift` — Custom OpenAPI 3.x JSON parser (YAML support would likely require a dependency)
 
 ---
 
@@ -528,8 +538,40 @@ This document consolidates all significant architecture decisions made during th
 
 ---
 
+### ADR-019: libcurl HTTP Client Engine
+
+**Status:** Accepted
+
+**Context:** URLSession provides no public API for detailed timing breakdown (DNS lookup, TCP connection, TLS handshake, TTFB, download phases). Users of API development tools expect timing waterfall charts similar to browser DevTools, Postman, and Insomnia. URLSession's delegate-based timing API (via `URLSessionTaskMetrics`) provides some timing data but lacks the granularity available through libcurl's `CURLINFO_*` APIs.
+
+**Decision:** Replace the primary HTTP engine with libcurl via a vendored curl-apple xcframework (v8.18.0 with OpenSSL). Keep `URLSessionHTTPClient` as an automatic fallback if `curl_global_init` fails. Use C shim wrappers for libcurl's variadic functions (`curl_easy_setopt`, `curl_easy_getinfo`). Bundle Mozilla's root CA certificates (`cacert.pem`) with SHA-256 build-time verification. Implement as an actor using GCD for the blocking `curl_easy_perform` call.
+
+**Alternatives Considered:**
+- **URLSessionTaskMetrics:** Provides transaction-level timing but lacks DNS/TCP/TLS breakdown per-request.
+- **Network.framework (NWConnection):** Lower-level but still doesn't expose timing for HTTP semantics.
+- **SwiftNIO + AsyncHTTPClient:** Full async HTTP stack but heavyweight dependency, no timing breakdown APIs.
+- **curl_multi interface:** Better for concurrent requests but more complex; deferred to future iteration.
+
+**Consequences:**
+- (+) Detailed timing waterfall with 7 phases (DNS, TCP, TLS, TTFB, download, total, redirect)
+- (+) Protocol abstraction via `HTTPClientProtocol` unchanged — views are unaware of engine
+- (+) Graceful fallback to URLSession ensures the app always works
+- (-) ~160MB vendored xcframework increases repository size (includes iOS slices that should be stripped)
+- (-) C interop complexity with `Unmanaged` pointers and `@convention(c)` callbacks
+- (-) Bundled CA certificates require periodic updates
+- (-) Export compliance review needed for bundled OpenSSL
+
+**References:**
+- `PostKit/Services/LibCurlHTTPClient.swift` — Actor-based libcurl HTTP client implementation
+- `PostKit/Services/HTTPClient.swift` — URLSession fallback client
+- `PostKit/Services/Protocols/HTTPClientProtocol.swift` — Shared protocol abstraction
+
+---
+
 ## Revision History
 
 | Date | Change |
 |------|--------|
 | 2026-02-13 | Initial document — 18 ADRs for PostKit MVP |
+| 2026-02-14 | ADR-003: Updated from "Zero External Dependencies" to "Minimal External Dependencies" |
+| 2026-02-14 | ADR-019: Added libcurl HTTP Client Engine decision |

@@ -1,12 +1,61 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import os
+
+private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "PostKitApp")
+
+private func cleanupStaleTempFiles() {
+    let tempDir = FileManager.default.temporaryDirectory
+    let fileManager = FileManager.default
+    
+    guard let enumerator = fileManager.enumerator(
+        at: tempDir,
+        includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+        options: [.skipsHiddenFiles, .skipsPackageDescendants]
+    ) else { return }
+    
+    let staleThreshold: TimeInterval = 24 * 60 * 60 // 24 hours
+    let now = Date()
+    
+    for case let fileURL as URL in enumerator {
+        guard fileURL.lastPathComponent.hasPrefix("postkit-response-"),
+              fileURL.pathExtension == "tmp" else { continue }
+        
+        do {
+            let attrs = try fileManager.attributesOfItem(atPath: fileURL.path)
+            guard let modDate = attrs[.modificationDate] as? Date else { continue }
+            
+            if now.timeIntervalSince(modDate) > staleThreshold {
+                try fileManager.removeItem(at: fileURL)
+                os_log(.info, log: log, "Cleaned up stale temp file: %{public}@", fileURL.lastPathComponent)
+            }
+        } catch {
+            os_log(.error, log: log, "Failed to check/remove temp file: %{public}@", error.localizedDescription)
+        }
+    }
+}
 
 @main
 struct PostKitApp: App {
     @State private var curlImportCollection: RequestCollection?
     @State private var showingOpenAPIImport = false
     @State private var showingImportCollection = false
+    
+    private let httpClient: HTTPClientProtocol = {
+        do {
+            return try CurlHTTPClient()
+        } catch {
+            os_log(.error, log: log, "curl_global_init failed, falling back to URLSession: %{public}@", error.localizedDescription)
+            return URLSessionHTTPClient()
+        }
+    }()
+    
+    init() {
+        Task.detached(priority: .background) {
+            cleanupStaleTempFiles()
+        }
+    }
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -29,6 +78,7 @@ struct PostKitApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.httpClient, httpClient)
                 .sheet(item: $curlImportCollection) { collection in
                     CurlImportSheet(collection: collection)
                 }

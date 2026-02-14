@@ -51,7 +51,7 @@ struct ResponseContentView: View {
                 case .headers:
                     ResponseHeadersView(headers: response.headers)
                 case .timing:
-                    ResponseTimingView(duration: response.duration, size: response.size)
+                    ResponseTimingView(duration: response.duration, size: response.size, timingBreakdown: response.timingBreakdown)
                 }
             }
         }
@@ -63,6 +63,8 @@ struct ResponseBodyView: View {
     @State private var showRaw = false
     @State private var bodyData: Data?
     @State private var loadError: String?
+    @State private var cachedJSON: Any?
+    @State private var prettyJSONString: String?
     
     private let maxDisplaySize: Int64 = 10_000_000 // 10MB
     
@@ -113,7 +115,18 @@ struct ResponseBodyView: View {
                     .frame(maxWidth: .infinity, minHeight: 200)
                     .task {
                         do {
-                            bodyData = try response.getBodyData()
+                            let data = try response.getBodyData()
+                            bodyData = data
+                            // Cache JSON parse result
+                            let actualData = data.prefix(Int(maxDisplaySize))
+                            if let json = try? JSONSerialization.jsonObject(with: actualData),
+                               json is [Any] || json is [String: Any] {
+                                cachedJSON = json
+                                if let prettyData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
+                                   let prettyString = String(data: prettyData, encoding: .utf8) {
+                                    prettyJSONString = prettyString
+                                }
+                            }
                         } catch {
                             loadError = error.localizedDescription
                         }
@@ -123,24 +136,14 @@ struct ResponseBodyView: View {
         .padding(12)
     }
     
-    private var isJSON: Bool {
-        guard let data = bodyData,
-              let json = try? JSONSerialization.jsonObject(with: data) else { return false }
-        return json is [Any] || json is [String: Any]
-    }
-    
+    private var isJSON: Bool { cachedJSON != nil }
+
     private func displayString(for data: Data) -> String {
-        let actualData = data.prefix(Int(maxDisplaySize))
-        let bodyString = String(data: actualData, encoding: .utf8) ?? "<binary data>"
-        
-        if !showRaw && isJSON {
-            if let pretty = try? JSONSerialization.jsonObject(with: actualData),
-               let data = try? JSONSerialization.data(withJSONObject: pretty, options: .prettyPrinted),
-               let string = String(data: data, encoding: .utf8) {
-                return string
-            }
+        if !showRaw, let prettyString = prettyJSONString {
+            return prettyString
         }
-        return bodyString
+        let actualData = data.prefix(Int(maxDisplaySize))
+        return String(data: actualData, encoding: .utf8) ?? "<binary data>"
     }
 }
 
@@ -217,6 +220,7 @@ struct ResponseHeadersView: View {
 struct ResponseTimingView: View {
     let duration: TimeInterval
     let size: Int64
+    let timingBreakdown: TimingBreakdown?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -242,11 +246,92 @@ struct ResponseTimingView: View {
             .background(Color(nsColor: .textBackgroundColor))
             .cornerRadius(6)
             
-            Text("Detailed timing metrics coming soon")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let breakdown = timingBreakdown {
+                TimingWaterfallView(timing: breakdown)
+            } else {
+                Text("Detailed timing metrics coming soon")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(12)
+    }
+}
+
+struct TimingWaterfallView: View {
+    let timing: TimingBreakdown
+    
+    private var phases: [(String, TimeInterval, Color)] {
+        [
+            ("DNS", timing.dnsLookup, .blue),
+            ("TCP", timing.tcpConnection, .green),
+            ("TLS", timing.tlsHandshake, .orange),
+            ("TTFB", timing.transferStart, .purple),
+            ("Download", timing.download, .teal),
+        ]
+    }
+    
+    private var connectionReused: Bool {
+        timing.dnsLookup < 0.001 && timing.tcpConnection < 0.001 && timing.tlsHandshake < 0.001
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if connectionReused {
+                HStack {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .foregroundStyle(.green)
+                    Text("Connection likely reused (fast handshake)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, 4)
+            }
+            
+            ForEach(phases, id: \.0) { name, duration, color in
+                HStack(spacing: 8) {
+                    Text(name)
+                        .font(.caption)
+                        .frame(width: 60, alignment: .trailing)
+                    
+                    if timing.total > 0 {
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(color)
+                                .frame(width: max(2, geo.size.width * (duration / timing.total)))
+                        }
+                        .frame(height: 12)
+                    } else {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .frame(height: 12)
+                    }
+                    
+                    Text(String(format: "%.1f ms", duration * 1000))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .frame(width: 70, alignment: .trailing)
+                }
+            }
+            
+            if timing.redirectTime > 0 {
+                HStack(spacing: 8) {
+                    Text("Redirect")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                    Spacer()
+                    Text(String(format: "%.1f ms", timing.redirectTime * 1000))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 70, alignment: .trailing)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .textBackgroundColor))
+        .cornerRadius(6)
     }
 }
 
@@ -269,12 +354,10 @@ struct ErrorView: View {
             
             if let clientError = error as? HTTPClientError {
                 switch clientError {
-                case .networkError(let underlying):
-                    if (underlying as NSError).code == NSURLErrorTimedOut {
-                        Text("The request timed out. Try increasing the timeout in settings.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                case .timeout:
+                    Text("The request timed out. Try a simpler request or check the server.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 default:
                     EmptyView()
                 }
@@ -310,7 +393,8 @@ struct EmptyResponseView: View {
         """.data(using: .utf8)!,
         bodyFileURL: nil,
         duration: 0.234,
-        size: 1234
+        size: 1234,
+        timingBreakdown: nil
     )
     
     ResponseViewerPane(

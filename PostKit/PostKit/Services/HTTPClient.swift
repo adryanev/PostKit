@@ -4,7 +4,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
     private let session: URLSession
     private var activeTasks: [UUID: URLSessionTask] = [:]
 
-    private let maxMemorySize: Int64 = 1_000_000 // 1MB
+    private let maxMemorySize: Int64 = httpClientMaxMemorySize
 
     init(configuration: URLSessionConfiguration = .default) {
         let config = configuration
@@ -27,6 +27,8 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                     if let error = error {
                         if (error as NSError).code == NSURLErrorCancelled {
                             continuation.resume(throwing: CancellationError())
+                        } else if (error as NSError).code == NSURLErrorTimedOut {
+                            continuation.resume(throwing: HTTPClientError.timeout)
                         } else {
                             continuation.resume(throwing: HTTPClientError.networkError(error))
                         }
@@ -41,7 +43,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                     // Move the file to a stable location before the callback returns,
                     // because the system deletes the temporary download file immediately after.
                     let stableURL = FileManager.default.temporaryDirectory
-                        .appendingPathComponent(UUID().uuidString)
+                        .appendingPathComponent("postkit-response-\(UUID().uuidString).tmp")
                     do {
                         try FileManager.default.moveItem(at: url, to: stableURL)
                         continuation.resume(returning: (stableURL, response))
@@ -73,7 +75,6 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
         let size = (fileAttributes[.size] as? Int64) ?? 0
 
         if size > maxMemorySize {
-            // Large response: keep on disk, return file URL
             return HTTPResponse(
                 statusCode: httpResponse.statusCode,
                 statusMessage: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
@@ -81,10 +82,10 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                 body: nil,
                 bodyFileURL: tempDownloadURL,
                 duration: duration,
-                size: size
+                size: size,
+                timingBreakdown: nil
             )
         } else {
-            // Small response: read into memory, clean up temp file
             let data = try Data(contentsOf: tempDownloadURL)
             try? FileManager.default.removeItem(at: tempDownloadURL)
             return HTTPResponse(
@@ -94,7 +95,8 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                 body: data,
                 bodyFileURL: nil,
                 duration: duration,
-                size: size
+                size: size,
+                timingBreakdown: nil
             )
         }
     }
@@ -118,6 +120,8 @@ enum HTTPClientError: LocalizedError {
     case invalidURL
     case networkError(Error)
     case responseTooLarge(Int64)
+    case timeout
+    case engineInitializationFailed
 
     var errorDescription: String? {
         switch self {
@@ -125,6 +129,8 @@ enum HTTPClientError: LocalizedError {
         case .invalidURL: return "Invalid URL"
         case .networkError(let error): return error.localizedDescription
         case .responseTooLarge(let size): return "Response too large: \(size) bytes"
+        case .timeout: return "Request timed out"
+        case .engineInitializationFailed: return "HTTP client engine failed to initialize"
         }
     }
 }

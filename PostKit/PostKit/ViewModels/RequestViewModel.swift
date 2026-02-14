@@ -56,10 +56,14 @@ final class RequestViewModel {
                 let urlRequest = try buildURLRequest(for: request)
                 let httpResponse = try await httpClient.execute(urlRequest, taskID: taskID)
 
+                guard taskID == self.currentTaskID else { return }
+                
                 self.response = httpResponse
                 self.isSending = false
                 self.saveHistory(httpResponse, for: request)
             } catch {
+                guard taskID == self.currentTaskID else { return }
+                
                 self.error = error
                 self.isSending = false
             }
