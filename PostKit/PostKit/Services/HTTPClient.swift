@@ -4,7 +4,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
     private let session: URLSession
     private var activeTasks: [UUID: URLSessionTask] = [:]
 
-    private let maxMemorySize: Int64 = 1_000_000 // 1MB
+    private let maxMemorySize: Int64 = httpClientMaxMemorySize
 
     init(configuration: URLSessionConfiguration = .default) {
         let config = configuration
@@ -27,6 +27,8 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                     if let error = error {
                         if (error as NSError).code == NSURLErrorCancelled {
                             continuation.resume(throwing: CancellationError())
+                        } else if (error as NSError).code == NSURLErrorTimedOut {
+                            continuation.resume(throwing: HTTPClientError.timeout)
                         } else {
                             continuation.resume(throwing: HTTPClientError.networkError(error))
                         }
@@ -41,7 +43,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                     // Move the file to a stable location before the callback returns,
                     // because the system deletes the temporary download file immediately after.
                     let stableURL = FileManager.default.temporaryDirectory
-                        .appendingPathComponent(UUID().uuidString)
+                        .appendingPathComponent("postkit-response-\(UUID().uuidString).tmp")
                     do {
                         try FileManager.default.moveItem(at: url, to: stableURL)
                         continuation.resume(returning: (stableURL, response))
@@ -119,7 +121,7 @@ enum HTTPClientError: LocalizedError {
     case networkError(Error)
     case responseTooLarge(Int64)
     case timeout
-    case curlInitFailed
+    case engineInitializationFailed
 
     var errorDescription: String? {
         switch self {
@@ -128,7 +130,7 @@ enum HTTPClientError: LocalizedError {
         case .networkError(let error): return error.localizedDescription
         case .responseTooLarge(let size): return "Response too large: \(size) bytes"
         case .timeout: return "Request timed out"
-        case .curlInitFailed: return "Failed to initialize curl"
+        case .engineInitializationFailed: return "HTTP client engine failed to initialize"
         }
     }
 }

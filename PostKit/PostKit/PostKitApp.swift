@@ -52,7 +52,9 @@ struct PostKitApp: App {
     }()
     
     init() {
-        cleanupStaleTempFiles()
+        Task.detached(priority: .background) {
+            cleanupStaleTempFiles()
+        }
     }
     
     var sharedModelContainer: ModelContainer = {

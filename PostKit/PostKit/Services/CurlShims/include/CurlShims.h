@@ -16,8 +16,6 @@ CURLcode curl_easy_setopt_progress_callback(CURL *curl, CURLoption option, int (
 
 CURLcode curl_easy_getinfo_double(CURL *curl, CURLINFO info, double *value);
 CURLcode curl_easy_getinfo_long(CURL *curl, CURLINFO info, long *value);
-CURLcode curl_easy_getinfo_string(CURL *curl, CURLINFO info, char **value);
-CURLcode curl_easy_getinfo_int64(CURL *curl, CURLINFO info, curl_off_t *value);
 
 #ifdef __cplusplus
 }

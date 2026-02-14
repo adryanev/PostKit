@@ -35,11 +35,3 @@ CURLcode curl_easy_getinfo_double(CURL *curl, CURLINFO info, double *value) {
 CURLcode curl_easy_getinfo_long(CURL *curl, CURLINFO info, long *value) {
     return curl_easy_getinfo(curl, info, value);
 }
-
-CURLcode curl_easy_getinfo_string(CURL *curl, CURLINFO info, char **value) {
-    return curl_easy_getinfo(curl, info, value);
-}
-
-CURLcode curl_easy_getinfo_int64(CURL *curl, CURLINFO info, curl_off_t *value) {
-    return curl_easy_getinfo(curl, info, value);
-}

@@ -63,6 +63,8 @@ struct ResponseBodyView: View {
     @State private var showRaw = false
     @State private var bodyData: Data?
     @State private var loadError: String?
+    @State private var cachedJSON: Any?
+    @State private var prettyJSONString: String?
     
     private let maxDisplaySize: Int64 = 10_000_000 // 10MB
     
@@ -113,7 +115,18 @@ struct ResponseBodyView: View {
                     .frame(maxWidth: .infinity, minHeight: 200)
                     .task {
                         do {
-                            bodyData = try response.getBodyData()
+                            let data = try response.getBodyData()
+                            bodyData = data
+                            // Cache JSON parse result
+                            let actualData = data.prefix(Int(maxDisplaySize))
+                            if let json = try? JSONSerialization.jsonObject(with: actualData),
+                               json is [Any] || json is [String: Any] {
+                                cachedJSON = json
+                                if let prettyData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
+                                   let prettyString = String(data: prettyData, encoding: .utf8) {
+                                    prettyJSONString = prettyString
+                                }
+                            }
                         } catch {
                             loadError = error.localizedDescription
                         }
@@ -123,24 +136,14 @@ struct ResponseBodyView: View {
         .padding(12)
     }
     
-    private var isJSON: Bool {
-        guard let data = bodyData,
-              let json = try? JSONSerialization.jsonObject(with: data) else { return false }
-        return json is [Any] || json is [String: Any]
-    }
-    
+    private var isJSON: Bool { cachedJSON != nil }
+
     private func displayString(for data: Data) -> String {
-        let actualData = data.prefix(Int(maxDisplaySize))
-        let bodyString = String(data: actualData, encoding: .utf8) ?? "<binary data>"
-        
-        if !showRaw && isJSON {
-            if let pretty = try? JSONSerialization.jsonObject(with: actualData),
-               let data = try? JSONSerialization.data(withJSONObject: pretty, options: .prettyPrinted),
-               let string = String(data: data, encoding: .utf8) {
-                return string
-            }
+        if !showRaw, let prettyString = prettyJSONString {
+            return prettyString
         }
-        return bodyString
+        let actualData = data.prefix(Int(maxDisplaySize))
+        return String(data: actualData, encoding: .utf8) ?? "<binary data>"
     }
 }
 
@@ -278,7 +281,7 @@ struct TimingWaterfallView: View {
                 HStack {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .foregroundStyle(.green)
-                    Text("Connection reused")
+                    Text("Connection likely reused (fast handshake)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -355,12 +358,6 @@ struct ErrorView: View {
                     Text("The request timed out. Try a simpler request or check the server.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                case .networkError(let underlying):
-                    if (underlying as NSError).code == NSURLErrorTimedOut {
-                        Text("The request timed out. Try a simpler request or check the server.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 default:
                     EmptyView()
                 }
