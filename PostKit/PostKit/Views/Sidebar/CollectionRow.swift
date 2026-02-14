@@ -1,24 +1,25 @@
 import SwiftUI
 import SwiftData
+import FactoryKit
 
 struct CollectionRow: View {
     let collection: RequestCollection
-    @Binding var selection: RequestCollection?
+    @Binding var selectedRequest: HTTPRequest?
     @Environment(\.modelContext) private var modelContext
     @State private var isExpanded = true
     @State private var isRenaming = false
     @State private var newName = ""
     @State private var exportError: String?
-    
-    private let fileExporter = FileExporter()
-    
+
+    @Injected(\.fileExporter) private var fileExporter
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(collection.folders.sorted(by: { $0.sortOrder < $1.sortOrder })) { folder in
-                FolderRow(folder: folder)
+                FolderRow(folder: folder, selectedRequest: $selectedRequest)
             }
             ForEach(collection.requests.filter { $0.folder == nil }.sorted(by: { $0.sortOrder < $1.sortOrder })) { request in
-                RequestRow(request: request, compact: true)
+                requestRow(for: request)
             }
         } label: {
             HStack {
@@ -46,7 +47,7 @@ struct CollectionRow: View {
                 isRenaming = true
             }
             Button("Delete", role: .destructive) {
-                modelContext.delete(collection)
+                deleteCollection(collection)
             }
         }
         .alert("Rename Collection", isPresented: $isRenaming) {
@@ -68,7 +69,21 @@ struct CollectionRow: View {
             }
         }
     }
-    
+
+    @ViewBuilder
+    private func requestRow(for request: HTTPRequest) -> some View {
+        RequestRow(request: request, compact: true)
+            .tag(request)
+            .contextMenu {
+                Button("Duplicate") {
+                    duplicateRequest(request)
+                }
+                Button("Delete", role: .destructive) {
+                    deleteRequest(request)
+                }
+            }
+    }
+
     private func exportCollection() {
         do {
             _ = try fileExporter.exportCollection(collection)
@@ -76,31 +91,70 @@ struct CollectionRow: View {
             exportError = error.localizedDescription
         }
     }
-    
+
     private func createRequest() {
         let request = HTTPRequest(name: "New Request")
         request.collection = collection
         modelContext.insert(request)
     }
-    
+
     private func createFolder() {
         let folder = Folder(name: "New Folder")
         folder.collection = collection
         modelContext.insert(folder)
     }
+
+    private func duplicateRequest(_ request: HTTPRequest) {
+        let duplicate = request.duplicated()
+        duplicate.collection = collection
+        duplicate.folder = request.folder
+        duplicate.sortOrder = collection.requests.count
+        modelContext.insert(duplicate)
+        selectedRequest = duplicate
+    }
+
+    private func deleteRequest(_ request: HTTPRequest) {
+        AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        if selectedRequest?.id == request.id {
+            selectedRequest = nil
+        }
+        modelContext.delete(request)
+    }
+
+    private func deleteCollection(_ collection: RequestCollection) {
+        for request in collection.requests {
+            AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        }
+        for env in collection.environments {
+            for variable in env.variables {
+                variable.deleteSecureValue()
+            }
+        }
+        modelContext.delete(collection)
+    }
 }
 
 struct FolderRow: View {
     let folder: Folder
+    @Binding var selectedRequest: HTTPRequest?
     @Environment(\.modelContext) private var modelContext
     @State private var isExpanded = true
     @State private var isRenaming = false
     @State private var newName = ""
-    
+
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(folder.requests.sorted(by: { $0.sortOrder < $1.sortOrder })) { request in
                 RequestRow(request: request, compact: true)
+                    .tag(request)
+                    .contextMenu {
+                        Button("Duplicate") {
+                            duplicateRequest(request)
+                        }
+                        Button("Delete", role: .destructive) {
+                            deleteRequest(request)
+                        }
+                    }
             }
         } label: {
             HStack {
@@ -124,7 +178,7 @@ struct FolderRow: View {
                 isRenaming = true
             }
             Button("Delete", role: .destructive) {
-                modelContext.delete(folder)
+                deleteFolder(folder)
             }
         }
         .alert("Rename Folder", isPresented: $isRenaming) {
@@ -134,6 +188,31 @@ struct FolderRow: View {
                 folder.name = newName
             }
         }
+    }
+
+    private func duplicateRequest(_ request: HTTPRequest) {
+        guard let collection = folder.collection else { return }
+        let duplicate = request.duplicated()
+        duplicate.collection = collection
+        duplicate.folder = folder
+        duplicate.sortOrder = folder.requests.count
+        modelContext.insert(duplicate)
+        selectedRequest = duplicate
+    }
+
+    private func deleteRequest(_ request: HTTPRequest) {
+        AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        if selectedRequest?.id == request.id {
+            selectedRequest = nil
+        }
+        modelContext.delete(request)
+    }
+
+    private func deleteFolder(_ folder: Folder) {
+        for request in folder.requests {
+            AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        }
+        modelContext.delete(folder)
     }
 }
 
@@ -145,7 +224,7 @@ struct FolderRow: View {
                 c.requests.append(HTTPRequest(name: "Get Users"))
                 return c
             }(),
-            selection: .constant(nil)
+            selectedRequest: .constant(nil)
         )
     }
     .modelContainer(for: RequestCollection.self, inMemory: true)

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import FactoryKit
 
 @Model
 final class Variable {
@@ -32,25 +33,27 @@ final class Variable {
     var secureValue: String {
         get {
             if isSecret {
-                return (try? KeychainManager.shared.retrieve(key: keychainKey)) ?? value
+                return (try? Container.shared.keychainManager().retrieve(key: keychainKey)) ?? value
             }
             return value
         }
         set {
             if isSecret {
-                try? KeychainManager.shared.store(key: keychainKey, value: newValue)
-                value = "" // Don't store in plaintext
+                do {
+                    try Container.shared.keychainManager().store(key: keychainKey, value: newValue)
+                    value = ""
+                } catch {
+                    // Keep plaintext if Keychain store fails - at least we don't lose data
+                }
             } else {
                 value = newValue
             }
         }
     }
 
-    /// Removes the Keychain entry associated with this variable.
-    /// Call this when deleting a secret variable to avoid orphaned Keychain items.
     func deleteSecureValue() {
         if isSecret {
-            try? KeychainManager.shared.delete(key: keychainKey)
+            try? Container.shared.keychainManager().delete(key: keychainKey)
         }
     }
 }

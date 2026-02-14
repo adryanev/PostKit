@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9B4DC7282F40BAEA00EABFE5 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9BFACT0022F0D8000000001 /* FactoryKit */; };
+		9B4DC7292F40BAEA00EABFE5 /* FactoryTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 9BFACT0032F0D8000000001 /* FactoryTesting */; };
+		9BCURL0022F0D7000000001 /* Frameworks/curl.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BCURL0012F0D7000000001 /* Frameworks/curl.xcframework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		9BB7D8872F0D65E600E7666D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,7 +33,7 @@
 		9BB7D8772F0D65E400E7666D /* PostKit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PostKit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9BB7D8862F0D65E600E7666D /* PostKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PostKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9BB7D8902F0D65E600E7666D /* PostKitUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PostKitUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9BCURL0012F0D7000000001 /* curl.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Frameworks/curl.xcframework; sourceTree = "<group>"; };
+		9BCURL0012F0D7000000001 /* Frameworks/curl.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Frameworks/curl.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -53,7 +59,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9BCURL0022F0D7000000001 /* curl.xcframework in Frameworks */,
+				9B4DC7282F40BAEA00EABFE5 /* FactoryKit in Frameworks */,
+				9BCURL0022F0D7000000001 /* Frameworks/curl.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -61,6 +68,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B4DC7292F40BAEA00EABFE5 /* FactoryTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,7 +106,7 @@
 		9BCURL0032F0D7000000001 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				9BCURL0012F0D7000000001 /* curl.xcframework */,
+				9BCURL0012F0D7000000001 /* Frameworks/curl.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -123,6 +131,7 @@
 			);
 			name = PostKit;
 			packageProductDependencies = (
+				9BFACT0022F0D8000000001 /* FactoryKit */,
 			);
 			productName = PostKit;
 			productReference = 9BB7D8772F0D65E400E7666D /* PostKit.app */;
@@ -146,6 +155,7 @@
 			);
 			name = PostKitTests;
 			packageProductDependencies = (
+				9BFACT0032F0D8000000001 /* FactoryTesting */,
 			);
 			productName = PostKitTests;
 			productReference = 9BB7D8862F0D65E600E7666D /* PostKitTests.xctest */;
@@ -206,6 +216,9 @@
 			);
 			mainGroup = 9BB7D86E2F0D65E400E7666D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9BFACT0012F0D8000000001 /* XCRemoteSwiftPackageReference "Factory" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9BB7D8782F0D65E400E7666D /* Products */;
 			projectDirPath = "";
@@ -278,10 +291,6 @@
 			targetProxy = 9BB7D8912F0D65E600E7666D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin PBXBuildFile section */
-		9BCURL0022F0D7000000001 /* curl.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BCURL0012F0D7000000001 /* curl.xcframework */; };
-/* End PBXBuildFile section */
 
 /* Begin XCBuildConfiguration section */
 		9BB7D8982F0D65E600E7666D /* Debug */ = {
@@ -442,7 +451,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = PostKit/PostKit-Bridging-Header.h;
+				SWIFT_OBJC_BRIDGING_HEADER = "PostKit/PostKit-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -486,7 +495,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = PostKit/PostKit-Bridging-Header.h;
+				SWIFT_OBJC_BRIDGING_HEADER = "PostKit/PostKit-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -612,6 +621,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9BFACT0012F0D8000000001 /* XCRemoteSwiftPackageReference "Factory" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/hmlongco/Factory.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9BFACT0022F0D8000000001 /* FactoryKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BFACT0012F0D8000000001 /* XCRemoteSwiftPackageReference "Factory" */;
+			productName = FactoryKit;
+		};
+		9BFACT0032F0D8000000001 /* FactoryTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BFACT0012F0D8000000001 /* XCRemoteSwiftPackageReference "Factory" */;
+			productName = FactoryTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9BB7D86F2F0D65E400E7666D /* Project object */;
 }

@@ -9,9 +9,10 @@ PostKit is a native macOS HTTP client (like Postman/Insomnia) built with SwiftUI
 - **Min macOS:** 14.0 (Sonoma) | **Min Xcode:** 16.0
 - **Architecture:** MVVM with `@Observable` ViewModels
 - **Persistence:** SwiftData (`@Model`, `@Query`)
-- **HTTP Engine:** Actor-based `URLSessionHTTPClient`
-- **Secrets:** macOS Keychain via `KeychainManager` singleton
-- **Testing:** Swift Testing framework (`@Test`, `#expect`)
+- **HTTP Engine:** Actor-based `CurlHTTPClient` with `URLSessionHTTPClient` fallback
+- **DI Container:** Factory 2.5.x (`import FactoryKit`)
+- **Secrets:** macOS Keychain via `KeychainManager` wrapped in Factory
+- **Testing:** Swift Testing framework (`@Test`, `#expect`) with FactoryTesting `.container` trait
 
 ## Build & Test Commands
 
@@ -57,7 +58,50 @@ All 6 model types must be registered in `PostKitApp.swift` schema array.
 
 ### Dependency Injection
 
-HTTP client is injected via SwiftUI `@Environment(\.httpClient)` with `HTTPClientProtocol`. Default is `URLSessionHTTPClient()`. For tests, inject a mock conforming to `HTTPClientProtocol`.
+PostKit uses Factory 2.5.x as the unified DI container (`import FactoryKit`). All services are registered in `DI/Container+*.swift` extensions and resolved via `@Injected` property wrapper.
+
+**Container Organization:**
+- `DI/Container+Services.swift` — httpClient, keychainManager, fileExporter
+- `DI/Container+Parsers.swift` — curlParser, openAPIParser, variableInterpolator
+
+**Mandatory Pattern for @Observable Classes:**
+
+Factory `@Injected` properties MUST be marked `@ObservationIgnored` in `@Observable` classes. Without it, the Observation framework tracks dependency resolution as state changes, causing infinite re-render loops or compilation errors.
+
+```swift
+@Observable
+final class RequestViewModel {
+    @ObservationIgnored @Injected(\.httpClient) private var httpClient
+    @ObservationIgnored @Injected(\.variableInterpolator) private var interpolator
+}
+```
+
+**SwiftData @Model Types:**
+
+`@Model` types cannot use property wrappers. Use `Container.shared` direct resolution:
+
+```swift
+// In Variable.swift
+Container.shared.keychainManager().store(key: keychainKey, value: newValue)
+```
+
+**Testing with Mocks:**
+
+Use the `.container` trait at `@Suite` level for test isolation:
+
+```swift
+@Suite(.container)
+struct RequestViewModelTests {
+    @Test func executeRequestReturnsResponse() async {
+        Container.shared.httpClient.register { MockHTTPClient(response: .success) }
+        let vm = RequestViewModel(modelContext: mockModelContext)
+        // ...
+    }
+}
+```
+
+**What stays as @Environment:**
+- `\.modelContext` — SwiftData's `ModelContext` is not `Sendable` and is lifecycle-managed by SwiftUI
 
 ## Key Patterns
 
@@ -96,17 +140,20 @@ When deleting requests/variables, always clean up Keychain entries via `deleteSe
 
 All source is under `PostKit/PostKit/` (the Xcode target root):
 
+- `DI/` — Factory container extensions (`Container+Services.swift`, `Container+Parsers.swift`)
 - `Models/` — SwiftData `@Model` classes + `Enums/` for `HTTPMethod`, `BodyType`, `AuthType`
 - `ViewModels/` — Single `RequestViewModel.swift` (execution, history, auth, interpolation)
 - `Views/` — Grouped by feature: `Sidebar/`, `RequestList/`, `RequestDetail/`, `Environment/`, `Import/`
 - `Services/` — `HTTPClient`, `CurlParser`, `OpenAPIParser`, `FileExporter`, `VariableInterpolator`, `KeychainManager`, `Protocols/`
-- `Utilities/` — `KeyValuePair`, `Environment+HTTPClient` (DI), `FocusedValues`
+- `Utilities/` — `KeyValuePair`, `FocusedValues`
 
-Tests are in `PostKit/PostKitTests/PostKitTests.swift` — all tests in one file, grouped by struct (`CurlParserTests`, `VariableInterpolatorTests`, `KeyValuePairTests`, `AuthConfigTests`, `OpenAPIParserTests`).
+Tests are in `PostKit/PostKitTests/`:
+- `PostKitTests.swift` — All tests in one file, grouped by struct (`CurlParserTests`, `VariableInterpolatorTests`, `KeyValuePairTests`, `AuthConfigTests`, `OpenAPIParserTests`, `RequestViewModelTests`)
+- `Mocks/` — Mock implementations (`MockHTTPClient`, `MockKeychainManager`) for Factory-based testing
 
 ## Documentation
 
-- **ADR:** `docs/adr/0001-postkit-architecture-decisions.md` — 18 Architecture Decision Records covering all major choices (SwiftUI over AppKit, SwiftData over CoreData, zero dependencies, actor-based HTTP client, Keychain for secrets, Swift Testing, etc.). Consult before proposing architectural changes.
+- **ADR:** `docs/adr/0001-postkit-architecture-decisions.md` — 20 Architecture Decision Records covering all major choices (SwiftUI over AppKit, SwiftData over CoreData, minimal dependencies, actor-based HTTP client, Keychain for secrets, Factory DI, Swift Testing, etc.). Consult before proposing architectural changes.
 - **Developer Guide:** `docs/sop/developer-guide.md` — Onboarding guide with setup instructions, architecture patterns, step-by-step feature addition walkthrough, coding conventions, security practices, and pre-commit/security checklists.
 - **Testing Standards:** `docs/sop/testing-standards.md` — **Every change must include tests with positive, negative, and edge cases.** Tests use Swift Testing (`@Test`, `#expect`), grouped by struct in `PostKitTests/PostKitTests.swift`, with `// MARK:` separators for each category.
 - **Brainstorms:** `docs/brainstorms/` — Exploration documents for upcoming features (HTTP client engine, text viewer/editor, OpenAPI import).

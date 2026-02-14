@@ -24,7 +24,7 @@ enum KeychainError: LocalizedError {
     }
 }
 
-final class KeychainManager: Sendable {
+final class KeychainManager: KeychainManagerProtocol, Sendable {
     static let shared = KeychainManager()
     
     private let service = "com.postkit.secrets"

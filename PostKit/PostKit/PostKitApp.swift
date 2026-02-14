@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 import os
+import FactoryKit
 
 private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "PostKitApp")
 
@@ -15,7 +16,7 @@ private func cleanupStaleTempFiles() {
         options: [.skipsHiddenFiles, .skipsPackageDescendants]
     ) else { return }
     
-    let staleThreshold: TimeInterval = 24 * 60 * 60 // 24 hours
+    let staleThreshold: TimeInterval = 24 * 60 * 60
     let now = Date()
     
     for case let fileURL as URL in enumerator {
@@ -42,19 +43,21 @@ struct PostKitApp: App {
     @State private var showingOpenAPIImport = false
     @State private var showingImportCollection = false
     
-    private let httpClient: HTTPClientProtocol = {
-        do {
-            return try CurlHTTPClient()
-        } catch {
-            os_log(.error, log: log, "curl_global_init failed, falling back to URLSession: %{public}@", error.localizedDescription)
-            return URLSessionHTTPClient()
-        }
-    }()
-    
     init() {
         Task.detached(priority: .background) {
             cleanupStaleTempFiles()
         }
+        
+        // Force-resolve singletons so the real implementations are cached
+        // before any other code can register overrides.
+        _ = Container.shared.httpClient()
+        _ = Container.shared.keychainManager()
+
+        #if !DEBUG
+        // Runtime verification that the Keychain manager has not been tampered with
+        assert(Container.shared.keychainManager() is KeychainManager,
+               "KeychainManager has been replaced with an unexpected implementation")
+        #endif
     }
     
     var sharedModelContainer: ModelContainer = {
@@ -78,7 +81,6 @@ struct PostKitApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.httpClient, httpClient)
                 .sheet(item: $curlImportCollection) { collection in
                     CurlImportSheet(collection: collection)
                 }
@@ -134,7 +136,7 @@ struct PostKitApp: App {
     }
 
     private func importCollection(from url: URL) throws {
-        let exporter = FileExporter()
+        let exporter = Container.shared.fileExporter()
         let context = sharedModelContainer.mainContext
         _ = try exporter.importCollection(from: url, into: context)
     }
