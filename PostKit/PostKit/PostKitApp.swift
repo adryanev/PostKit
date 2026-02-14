@@ -55,8 +55,8 @@ struct PostKitApp: App {
 
         #if !DEBUG
         // Runtime verification that the Keychain manager has not been tampered with
-        assert(Container.shared.keychainManager() is KeychainManager,
-               "KeychainManager has been replaced with an unexpected implementation")
+        precondition(Container.shared.keychainManager() is KeychainManager,
+                     "KeychainManager has been replaced with an unexpected implementation")
         #endif
     }
     

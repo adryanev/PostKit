@@ -148,7 +148,7 @@ All source is under `PostKit/PostKit/` (the Xcode target root):
 - `Utilities/` — `KeyValuePair`, `FocusedValues`
 
 Tests are in `PostKit/PostKitTests/`:
-- `PostKitTests.swift` — All tests in one file, grouped by struct (`CurlParserTests`, `VariableInterpolatorTests`, `KeyValuePairTests`, `AuthConfigTests`, `OpenAPIParserTests`, `RequestViewModelTests`)
+- `PostKitTests.swift` — Test suites grouped by struct (`CurlParserTests`, `VariableInterpolatorTests`, `KeyValuePairTests`, `AuthConfigTests`, `OpenAPIParserTests`, `RequestViewModelTests`)
 - `Mocks/` — Mock implementations (`MockHTTPClient`, `MockKeychainManager`) for Factory-based testing
 
 ## Documentation

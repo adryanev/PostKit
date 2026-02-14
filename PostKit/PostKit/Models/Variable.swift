@@ -1,6 +1,9 @@
 import Foundation
 import SwiftData
 import FactoryKit
+import os
+
+private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "Variable")
 
 @Model
 final class Variable {
@@ -43,7 +46,9 @@ final class Variable {
                     try Container.shared.keychainManager().store(key: keychainKey, value: newValue)
                     value = ""
                 } catch {
-                    // Keep plaintext if Keychain store fails - at least we don't lose data
+                    // Fail securely: preserve old value, log error, do not fall back to plaintext
+                    os_log(.error, log: log, "Failed to store secret in Keychain for variable %{public}@: %{public}@",
+                           id.uuidString, error.localizedDescription)
                 }
             } else {
                 value = newValue

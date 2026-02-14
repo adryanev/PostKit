@@ -1143,11 +1143,12 @@ struct RequestViewModelTests {
         
         for _ in 0..<15 {
             await viewModel.sendRequest(for: request)
+            await Task.yield()  // Allow spawned task to complete
         }
         
         let descriptor = FetchDescriptor<HistoryEntry>()
         let entries = try? container.mainContext.fetch(descriptor)
-        #expect(entries != nil)
+        #expect(entries?.count == 15)
     }
 }
 

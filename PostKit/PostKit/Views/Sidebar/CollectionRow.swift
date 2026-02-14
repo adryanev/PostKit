@@ -122,6 +122,13 @@ struct CollectionRow: View {
 
     private func duplicateRequest(_ request: HTTPRequest) {
         let duplicate = request.duplicated()
+
+        // Copy secrets from original request to duplicated request's Keychain entry
+        let originalAuthConfig = request.authConfig.retrieveSecrets(forRequestID: request.id.uuidString)
+        var duplicatedAuthConfig = originalAuthConfig
+        duplicatedAuthConfig.storeSecrets(forRequestID: duplicate.id.uuidString)
+        duplicate.authConfig = duplicatedAuthConfig
+
         duplicate.collection = collection
         duplicate.folder = request.folder
         duplicate.sortOrder = collection.requests.count
@@ -225,6 +232,13 @@ struct FolderRow: View {
     private func duplicateRequest(_ request: HTTPRequest) {
         guard let collection = folder.collection else { return }
         let duplicate = request.duplicated()
+
+        // Copy secrets from original request to duplicated request's Keychain entry
+        let originalAuthConfig = request.authConfig.retrieveSecrets(forRequestID: request.id.uuidString)
+        var duplicatedAuthConfig = originalAuthConfig
+        duplicatedAuthConfig.storeSecrets(forRequestID: duplicate.id.uuidString)
+        duplicate.authConfig = duplicatedAuthConfig
+
         duplicate.collection = collection
         duplicate.folder = folder
         duplicate.sortOrder = folder.requests.count

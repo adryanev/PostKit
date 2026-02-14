@@ -22,6 +22,6 @@ extension Container {
 
     @MainActor
     var fileExporter: Factory<FileExporterProtocol> {
-        self { @MainActor in FileExporter() }
+        self { FileExporter() }
     }
 }
