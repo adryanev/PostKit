@@ -47,7 +47,7 @@ struct PostKitApp: App {
         Task.detached(priority: .background) {
             cleanupStaleTempFiles()
         }
-        
+
         // Force-resolve singletons so the real implementations are cached
         // before any other code can register overrides.
         _ = Container.shared.httpClient()

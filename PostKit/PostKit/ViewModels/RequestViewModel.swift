@@ -16,6 +16,7 @@ final class RequestViewModel {
     var error: Error?
     var activeTab: ResponseTab = .body
     private(set) var currentTaskID: UUID?
+    @ObservationIgnored private(set) var currentTask: Task<Void, Never>?
 
     // MARK: - Dependencies
 
@@ -55,19 +56,19 @@ final class RequestViewModel {
         let taskID = UUID()
         currentTaskID = taskID
 
-        Task {
+        currentTask = Task { @MainActor in
             do {
                 let urlRequest = try buildURLRequest(for: request)
                 let httpResponse = try await httpClient.execute(urlRequest, taskID: taskID)
 
                 guard taskID == self.currentTaskID else { return }
-                
+
                 self.response = httpResponse
                 self.isSending = false
                 self.saveHistory(httpResponse, for: request)
             } catch {
                 guard taskID == self.currentTaskID else { return }
-                
+
                 self.error = error
                 self.isSending = false
             }
@@ -76,7 +77,7 @@ final class RequestViewModel {
 
     func cancelRequest() {
         if let taskID = currentTaskID {
-            Task {
+            Task { @MainActor in
                 await httpClient.cancel(taskID: taskID)
             }
         }
