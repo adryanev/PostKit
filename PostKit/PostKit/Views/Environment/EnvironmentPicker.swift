@@ -8,57 +8,74 @@ struct EnvironmentPicker: View {
     @State private var showingEnvironmentEditor = false
     
     var body: some View {
-        HStack(spacing: 8) {
-            if let env = selectedEnvironment ?? activeEnvironments.first {
-                Label(env.name, systemImage: "globe")
-                    .labelStyle(.titleAndIcon)
-            } else {
-                Label("No Environment", systemImage: "globe")
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.secondary)
+        Menu {
+            Button {
+                selectedEnvironment = nil
+                deactivateAllEnvironments()
+            } label: {
+                HStack {
+                    Text("No Environment")
+                    if selectedEnvironment == nil {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
             }
             
-            Menu {
+            Divider()
+            
+            ForEach(allEnvironments) { env in
                 Button {
-                    selectedEnvironment = nil
-                    deactivateAllEnvironments()
+                    selectEnvironment(env)
                 } label: {
-                    Label("No Environment", systemImage: selectedEnvironment == nil ? "checkmark" : "")
-                }
-                
-                Divider()
-                
-                ForEach(allEnvironments) { env in
-                    Button {
-                        selectEnvironment(env)
-                    } label: {
-                        HStack {
-                            Text(env.name)
-                            if selectedEnvironment?.id == env.id {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
+                    HStack {
+                        Text(env.name)
+                        if selectedEnvironment?.id == env.id {
+                            Spacer()
+                            Image(systemName: "checkmark")
                         }
                     }
                 }
-                
-                Divider()
-                
-                Button {
-                    showingEnvironmentEditor = true
-                } label: {
-                    Label("Manage Environments...", systemImage: "gear")
-                }
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.caption)
             }
-            .buttonStyle(.plain)
+            
+            Divider()
+            
+            Button {
+                showingEnvironmentEditor = true
+            } label: {
+                Label("Manage Environments...", systemImage: "gear")
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "globe")
+                    .foregroundStyle(.secondary)
+                
+                if let env = selectedEnvironment ?? activeEnvironments.first {
+                    Text(env.name)
+                        .lineLimit(1)
+                } else {
+                    Text("No Environment")
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minWidth: 150)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+            )
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(6)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
         .sheet(isPresented: $showingEnvironmentEditor) {
             EnvironmentEditorSheet()
         }

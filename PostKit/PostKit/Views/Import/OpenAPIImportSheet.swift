@@ -292,12 +292,44 @@ struct ConfigureStepView: View {
         VStack(spacing: 16) {
             if let spec = viewModel.spec {
                 if !spec.servers.isEmpty {
-                    Picker("Server", selection: $viewModel.selectedServer) {
-                        ForEach(spec.servers, id: \.url) { server in
-                            Text(server.description ?? server.url).tag(Optional(server.url))
+                    HStack {
+                        Text("Server:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        Menu {
+                            ForEach(spec.servers, id: \.url) { server in
+                                Button {
+                                    viewModel.selectedServer = server.url
+                                } label: {
+                                    HStack {
+                                        Text(server.description ?? server.url)
+                                        if viewModel.selectedServer == server.url {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text(viewModel.selectedServer ?? "Select a server")
+                                    .lineLimit(1)
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(nsColor: .controlBackgroundColor))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
-                    .frame(width: 400)
                 }
                 
                 HStack {
