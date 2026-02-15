@@ -18,4 +18,15 @@ enum BodyType: String, Codable, CaseIterable, Sendable {
         case .xml: return "application/xml"
         }
     }
+    
+    var highlightrLanguage: String? {
+        switch self {
+        case .none: return nil
+        case .json: return "json"
+        case .xml: return "xml"
+        case .raw: return nil
+        case .urlEncoded: return nil
+        case .formData: return nil
+        }
+    }
 }

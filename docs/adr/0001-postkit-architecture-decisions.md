@@ -53,11 +53,22 @@ This document consolidates all significant architecture decisions made during th
 - (+) Direct integration with SwiftData via `@Query` and `@Bindable`
 - (+) Single framework for all UI, reducing cognitive overhead
 - (-) Some macOS-specific features (e.g., `NSSavePanel`) still require AppKit bridging
+- (-) SwiftUI `TextEditor` does not support attributed text — syntax highlighting requires `NSViewRepresentable` bridging to `NSTextView`
 - (-) Fewer online resources compared to AppKit for advanced macOS patterns
+
+**AppKit Bridging Pattern (NSViewRepresentable):**
+
+For features where SwiftUI lacks native support (syntax highlighting with attributed text), `NSViewRepresentable` is the accepted bridging mechanism. The pattern wraps AppKit views while maintaining SwiftUI semantics:
+
+- **CodeTextView** (`Views/Components/CodeTextView.swift`) — Wraps `NSTextView` + `CodeAttributedString` (Highlightr) for syntax-highlighted code editing
+- The view is fully controlled by SwiftUI via `@Binding` for text content
+- Theme follows system appearance via `@Environment(\.colorScheme)`
+- All text manipulation (find, copy, undo) delegates to NSTextView's built-in features
 
 **References:**
 - `PostKit/Views/ContentView.swift` — NavigationSplitView three-pane layout
 - `PostKit/Views/RequestDetail/RequestDetailView.swift` — HSplitView for editor/response split
+- `PostKit/Views/Components/CodeTextView.swift` — NSViewRepresentable pattern for syntax highlighting
 
 ---
 
@@ -118,6 +129,7 @@ Each new dependency must be justified in this ADR or in a new ADR entry.
 
 **Current Dependencies:**
 - **Factory 2.5.x** (`https://github.com/hmlongco/Factory.git`) — Unified dependency injection container. Justified: DI is infrastructure touching every layer; `@Environment` approach hit architectural ceiling (ViewModels can't self-resolve); enables ViewModel testing; ~1,000 LOC with no transitive dependencies. See ADR-020 for full decision rationale.
+- **Highlightr 2.3.0** (`https://github.com/raspu/Highlightr.git`) — Syntax highlighting via highlight.js. Justified: Syntax highlighting is table-stakes for API clients (Postman, Insomnia all have it); implementing from scratch would require a lexer for every language; wraps highlight.js (actively maintained, 90+ languages); adds ~2-4MB resident memory via JavaScriptCore; single maintainer but stable API. Uses `@preconcurrency` import to handle non-Sendable classes.
 
 **References:**
 - `PostKit/Services/KeychainManager.swift` — Direct Security framework usage (no KeychainAccess needed)

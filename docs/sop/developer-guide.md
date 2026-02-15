@@ -31,11 +31,12 @@
 
 | Layer | Technology |
 |-------|-----------|
-| UI Framework | SwiftUI (declarative, no AppKit views) |
+| UI Framework | SwiftUI with NSViewRepresentable for code editing |
 | Persistence | SwiftData (`@Model`, `@Query`) |
 | Architecture | MVVM with `@Observable` ViewModels |
 | HTTP Engine | libcurl via `CurlHTTPClient` with `URLSessionHTTPClient` fallback |
 | DI Container | Factory 2.5.x (`import FactoryKit`) |
+| Syntax Highlighting | Highlightr 2.3.0 (via highlight.js) |
 | Secret Storage | macOS Keychain (Security framework) |
 | Testing | Swift Testing (`@Test`, `#expect`) with FactoryTesting |
 
@@ -43,10 +44,10 @@
 
 | Metric | Value |
 |--------|-------|
-| Lines of Code | ~4,500 |
-| Swift Files | 45 |
+| Lines of Code | ~5,000 |
+| Swift Files | 48 |
 | SwiftData Models | 6 |
-| External Dependencies | 1 (Factory) |
+| External Dependencies | 2 (Factory, Highlightr) |
 | Minimum macOS | 14.0 (Sonoma) |
 | Minimum Xcode | 16.0 |
 
@@ -60,6 +61,8 @@
 - JSON export with automatic credential redaction
 - Keychain-backed secret storage
 - Request history tracking
+- Syntax highlighting (JSON, XML, YAML, HTML, CSS, JavaScript, Bash) via Highlightr
+- Line numbers and find/search (Cmd+F) in code editors
 
 ---
 
