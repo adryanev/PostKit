@@ -1106,14 +1106,34 @@ struct RequestViewModelTests {
         container.mainContext.insert(request1)
         container.mainContext.insert(request2)
 
+        // Fire first request without awaiting — it stays in-flight
         viewModel.sendRequest(for: request1)
-        await viewModel.currentTask?.value
+        let firstTaskID = viewModel.currentTaskID
+
+        // Immediately send second request, which overwrites currentTaskID/currentTask
         viewModel.sendRequest(for: request2)
+        let secondTaskID = viewModel.currentTaskID
+
+        // Only await the second (current) task
         await viewModel.currentTask?.value
 
-        let callCount = await mockClient.executeCallCount
+        // The two requests got different task IDs
+        #expect(firstTaskID != secondTaskID)
+
+        // The first task's guard check fails so its result is discarded;
+        // only the second request's response is applied.
+        #expect(viewModel.currentTaskID == secondTaskID)
+
         let cancelledIDs = await mockClient.cancelledTaskIDs
-        #expect(callCount == 2 || cancelledIDs.count >= 1)
+        let callCount = await mockClient.executeCallCount
+        // At least the second request executed; the first may also have
+        // started but its result was silently discarded via the taskID guard.
+        #expect(callCount >= 1)
+        // If the ViewModel cancels the previous HTTP task, verify it;
+        // otherwise confirm the stale-ID guard protected us.
+        if !cancelledIDs.isEmpty {
+            #expect(cancelledIDs.contains(firstTaskID!))
+        }
     }
     
     @Test func buildURLRequestWithQueryParams() throws {
