@@ -829,7 +829,7 @@ Wire everything together and handle edge cases.
 
 - [x] 30+ new tests covering parser, diff engine, and importer
 - [x] All existing 12 OpenAPI parser tests still pass
-- [ ] Manual testing with Petstore OpenAPI spec (canonical)
+- [x] Manual testing with Petstore OpenAPI spec (canonical)
 
 ## Dependencies & Prerequisites
 
