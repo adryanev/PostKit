@@ -33,7 +33,7 @@ enum SecuritySchemeType: Sendable {
     case unsupported(String)
 }
 
-struct OpenAPIEndpoint: Sendable, Identifiable {
+struct OpenAPIEndpoint: Sendable, Identifiable, Hashable {
     var id: String { "\(method.rawValue) \(path)" }
     var name: String
     var method: HTTPMethod
@@ -44,14 +44,22 @@ struct OpenAPIEndpoint: Sendable, Identifiable {
     var operationId: String?
     var description: String?
     var security: [String]?
+    
+    static func == (lhs: OpenAPIEndpoint, rhs: OpenAPIEndpoint) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 
-struct OpenAPIParameter: Sendable {
+struct OpenAPIParameter: Sendable, Hashable {
     var name: String
     var location: String
 }
 
-struct OpenAPIRequestBody: Sendable {
+struct OpenAPIRequestBody: Sendable, Hashable {
     var contentType: String
 }
 
