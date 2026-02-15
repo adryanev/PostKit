@@ -18,6 +18,7 @@ struct EndpointChange: Sendable, Identifiable {
     let id: String
     let existing: EndpointSnapshot
     let incoming: EndpointSnapshot
+    let incomingEndpoint: OpenAPIEndpoint
 }
 
 struct DiffResult: Sendable {
@@ -27,7 +28,7 @@ struct DiffResult: Sendable {
     let unchangedEndpoints: [EndpointSnapshot]
 }
 
-enum EndpointDecision: Sendable {
+enum EndpointDecision: Sendable, Hashable {
     case addNew(OpenAPIEndpoint)
     case replaceExisting(requestID: UUID, with: OpenAPIEndpoint)
     case deleteExisting(requestID: UUID)
@@ -64,7 +65,8 @@ final class OpenAPIDiffEngine: Sendable {
                     changedEndpoints.append(EndpointChange(
                         id: matchKey,
                         existing: existingSnapshot,
-                        incoming: incomingSnapshot
+                        incoming: incomingSnapshot,
+                        incomingEndpoint: endpoint
                     ))
                 }
             } else {
