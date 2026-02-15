@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import FactoryKit
 
 struct OpenAPIImportSheet: View {
     @Environment(\.modelContext) private var modelContext
@@ -15,7 +16,7 @@ struct OpenAPIImportSheet: View {
     @State private var selectedEndpoints: Set<String> = []
     @State private var isImporting = false
     
-    private let parser = OpenAPIParser()
+    @Injected(\.openAPIParser) private var parser
     
     var body: some View {
         VStack(spacing: 16) {

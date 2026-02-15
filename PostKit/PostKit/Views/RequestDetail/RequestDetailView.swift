@@ -3,7 +3,6 @@ import SwiftData
 
 struct RequestDetailView: View {
     @Bindable var request: HTTPRequest
-    @Environment(\.httpClient) private var httpClient
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: RequestViewModel?
 
@@ -21,7 +20,7 @@ struct RequestDetailView: View {
 
             HSplitView {
                 RequestEditorPane(request: request)
-                    .frame(minWidth: 300, maxWidth: .infinity)
+                    .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
 
                 ResponseViewerPane(
                     response: viewModel?.response,
@@ -29,9 +28,11 @@ struct RequestDetailView: View {
                     activeTab: activeTabBinding,
                     isLoading: viewModel?.isSending ?? false
                 )
-                .frame(minWidth: 300, maxWidth: .infinity)
+                .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Picker("Response Tab", selection: activeTabBinding) {
@@ -48,10 +49,7 @@ struct RequestDetailView: View {
         .focusedValue(\.cancelRequestAction, { viewModel?.cancelRequest() })
         .onAppear {
             if viewModel == nil {
-                viewModel = RequestViewModel(
-                    httpClient: httpClient,
-                    modelContext: modelContext
-                )
+                viewModel = RequestViewModel(modelContext: modelContext)
             }
         }
     }

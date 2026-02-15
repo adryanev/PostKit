@@ -3,35 +3,19 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var selectedCollection: RequestCollection?
     @State private var selectedRequest: HTTPRequest?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
-    
+
     enum Pane: Hashable {
-        case sidebar, list, detail
+        case sidebar, detail
     }
-    
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            CollectionsSidebar(selection: $selectedCollection)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 300)
+            CollectionsSidebar(selectedRequest: $selectedRequest)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 350)
                 .focused($focusedPane, equals: .sidebar)
-        } content: {
-            if let collection = selectedCollection {
-                RequestListView(
-                    collection: collection,
-                    selection: $selectedRequest
-                )
-                .navigationSplitViewColumnWidth(min: 250, ideal: 280, max: 350)
-                .focused($focusedPane, equals: .list)
-            } else {
-                ContentUnavailableView(
-                    "Select a Collection",
-                    systemImage: "folder",
-                    description: Text("Choose a collection from the sidebar to view its requests")
-                )
-            }
         } detail: {
             if let request = selectedRequest {
                 RequestDetailView(request: request)
@@ -40,11 +24,11 @@ struct ContentView: View {
                 ContentUnavailableView(
                     "Select a Request",
                     systemImage: "arrow.right.circle",
-                    description: Text("Choose a request to edit and send")
+                    description: Text("Choose a request from the sidebar to edit and send")
                 )
             }
         }
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(.prominentDetail)
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 EnvironmentPicker()
@@ -64,11 +48,10 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func cycleFocus() {
         switch focusedPane {
-        case .sidebar: focusedPane = .list
-        case .list: focusedPane = .detail
+        case .sidebar: focusedPane = .detail
         case .detail, .none: focusedPane = .sidebar
         }
     }

@@ -39,7 +39,7 @@ struct ExportedKeyValuePair: Codable {
 }
 
 @MainActor
-final class FileExporter {
+final class FileExporter: FileExporterProtocol {
     // Header keys whose values are stripped on export to prevent credential leaks.
     // Comparison is case-insensitive.
     private static let sensitiveHeaderKeys: Set<String> = [

@@ -26,7 +26,7 @@ enum CurlParserError: LocalizedError {
     }
 }
 
-final class CurlParser: Sendable {
+final class CurlParser: CurlParserProtocol, Sendable {
     func parse(_ curlCommand: String) throws -> ParsedRequest {
         var result = ParsedRequest()
         

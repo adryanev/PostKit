@@ -2,16 +2,16 @@ import SwiftUI
 import SwiftData
 
 struct CollectionsSidebar: View {
-    @Binding var selection: RequestCollection?
+    @Binding var selectedRequest: HTTPRequest?
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RequestCollection.sortOrder) private var collections: [RequestCollection]
     @State private var isAddingCollection = false
     @State private var newCollectionName = ""
-    
+
     var body: some View {
-        List(selection: $selection) {
+        List(selection: $selectedRequest) {
             ForEach(collections) { collection in
-                CollectionRow(collection: collection, selection: $selection)
+                CollectionRow(collection: collection, selectedRequest: $selectedRequest)
             }
             .onDelete(perform: deleteCollections)
             .onMove(perform: moveCollections)
@@ -36,21 +36,20 @@ struct CollectionsSidebar: View {
             }
         }
     }
-    
+
     private func createCollection() {
         guard !newCollectionName.isEmpty else { return }
         let collection = RequestCollection(name: newCollectionName)
         modelContext.insert(collection)
         newCollectionName = ""
-        selection = collection
     }
-    
+
     private func deleteCollections(at offsets: IndexSet) {
         for index in offsets {
             modelContext.delete(collections[index])
         }
     }
-    
+
     private func moveCollections(from source: IndexSet, to destination: Int) {
         var revised = collections
         revised.move(fromOffsets: source, toOffset: destination)
@@ -61,6 +60,6 @@ struct CollectionsSidebar: View {
 }
 
 #Preview {
-    CollectionsSidebar(selection: .constant(nil))
+    CollectionsSidebar(selectedRequest: .constant(nil))
         .modelContainer(for: RequestCollection.self, inMemory: true)
 }

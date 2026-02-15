@@ -1,4 +1,5 @@
 import Foundation
+import FactoryKit
 
 enum AuthType: String, Codable, CaseIterable, Sendable {
     case none = "none"
@@ -58,7 +59,7 @@ extension AuthConfig {
     /// Moves sensitive fields (token, password, apiKeyValue) into the
     /// Keychain and clears their plaintext representations.
     mutating func storeSecrets(forRequestID requestID: String) {
-        let keychain = KeychainManager.shared
+        let keychain = Container.shared.keychainManager()
 
         if let token = token, !token.isEmpty {
             try? keychain.store(key: Self.tokenKey(for: requestID), value: token)
@@ -74,12 +75,8 @@ extension AuthConfig {
         }
     }
 
-    // MARK: Retrieve from Keychain
-
-    /// Returns a copy of this config with sensitive fields populated
-    /// from the Keychain. Non-secret fields are passed through unchanged.
     func retrieveSecrets(forRequestID requestID: String) -> AuthConfig {
-        let keychain = KeychainManager.shared
+        let keychain = Container.shared.keychainManager()
         var config = self
 
         if config.token?.isEmpty != false {
@@ -94,12 +91,8 @@ extension AuthConfig {
         return config
     }
 
-    // MARK: Delete secrets
-
-    /// Removes all Keychain entries associated with the given request ID.
-    /// Call this when deleting a request to avoid orphaned Keychain items.
     static func deleteSecrets(forRequestID requestID: String) {
-        let keychain = KeychainManager.shared
+        let keychain = Container.shared.keychainManager()
         try? keychain.delete(key: tokenKey(for: requestID))
         try? keychain.delete(key: passwordKey(for: requestID))
         try? keychain.delete(key: apiKeyValueKey(for: requestID))

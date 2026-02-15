@@ -1,6 +1,6 @@
 # PostKit Developer Guide
 
-> **Last updated:** 2026-02-13
+> **Last updated:** 2026-02-14
 > **Applies to:** PostKit v1.0 (MVP)
 > **Audience:** New contributors, future maintainers
 
@@ -34,19 +34,19 @@
 | UI Framework | SwiftUI (declarative, no AppKit views) |
 | Persistence | SwiftData (`@Model`, `@Query`) |
 | Architecture | MVVM with `@Observable` ViewModels |
-| HTTP Engine | `URLSession` via actor-based `URLSessionHTTPClient` |
+| HTTP Engine | libcurl via `CurlHTTPClient` with `URLSessionHTTPClient` fallback |
+| DI Container | Factory 2.5.x (`import FactoryKit`) |
 | Secret Storage | macOS Keychain (Security framework) |
-| Testing | Swift Testing (`@Test`, `#expect`) |
-| Dependencies | **Zero** — Apple frameworks only |
+| Testing | Swift Testing (`@Test`, `#expect`) with FactoryTesting |
 
 ### Key Stats
 
 | Metric | Value |
 |--------|-------|
-| Lines of Code | ~4,100 |
-| Swift Files | 37 |
+| Lines of Code | ~4,500 |
+| Swift Files | 45 |
 | SwiftData Models | 6 |
-| External Dependencies | 0 |
+| External Dependencies | 1 (Factory) |
 | Minimum macOS | 14.0 (Sonoma) |
 | Minimum Xcode | 16.0 |
 
@@ -69,7 +69,7 @@
 
 - macOS 14.0+ (Sonoma or later)
 - Xcode 16.0+
-- No additional tools required (no CocoaPods, SPM packages, or Homebrew dependencies)
+- Network access for Swift Package Manager (to resolve Factory dependency)
 
 ### Quick Start
 
@@ -82,12 +82,11 @@ cd PostKit
 open PostKit.xcodeproj
 ```
 
-1. Select the **PostKit** scheme in Xcode's scheme selector
-2. Press `Cmd+B` to build
-3. Press `Cmd+R` to run
-4. Press `Cmd+U` to run tests
-
-That's it. There are no dependency installation steps, no environment variables to configure, and no build scripts to run.
+1. Xcode will automatically resolve the Factory Swift Package dependency
+2. Select the **PostKit** scheme in Xcode's scheme selector
+3. Press `Cmd+B` to build
+4. Press `Cmd+R` to run
+5. Press `Cmd+U` to run tests
 
 ### Troubleshooting
 
@@ -107,6 +106,9 @@ PostKit/
 ├── PostKit/                          # Main app target
 │   ├── PostKitApp.swift              # @main entry, SwiftData schema, menu commands
 │   ├── PostKit.entitlements          # App Sandbox + network + file access
+│   ├── DI/                           # Factory DI container
+│   │   ├── Container+Services.swift  # httpClient, keychainManager, fileExporter
+│   │   └── Container+Parsers.swift   # curlParser, openAPIParser, variableInterpolator
 │   ├── Models/
 │   │   ├── RequestCollection.swift   # Top-level collection with cascade relationships
 │   │   ├── Folder.swift              # Nested folder within a collection
@@ -142,20 +144,28 @@ PostKit/
 │   │       ├── CurlImportSheet.swift
 │   │       └── OpenAPIImportSheet.swift
 │   ├── Services/
-│   │   ├── HTTPClient.swift          # Actor-based URLSession client
+│   │   ├── CurlHTTPClient.swift      # libcurl-based HTTP client (primary engine)
+│   │   ├── HTTPClient.swift          # URLSession fallback client
 │   │   ├── CurlParser.swift          # cURL command tokenizer and parser
 │   │   ├── OpenAPIParser.swift       # OpenAPI 3.x spec parser
 │   │   ├── FileExporter.swift        # JSON export/import with credential redaction
 │   │   ├── VariableInterpolator.swift # {{variable}} template engine
 │   │   ├── KeychainManager.swift     # macOS Keychain wrapper singleton
 │   │   └── Protocols/
-│   │       └── HTTPClientProtocol.swift  # Protocol + HTTPResponse struct
+│   │       ├── HTTPClientProtocol.swift    # Protocol + HTTPResponse struct
+│   │       ├── KeychainManagerProtocol.swift
+│   │       ├── CurlParserProtocol.swift
+│   │       ├── OpenAPIParserProtocol.swift
+│   │       ├── VariableInterpolatorProtocol.swift
+│   │       └── FileExporterProtocol.swift
 │   └── Utilities/
-│       ├── Environment+HTTPClient.swift  # SwiftUI EnvironmentKey for DI
-│       ├── FocusedValues.swift           # FocusedValueKeys for menu commands
-│       └── KeyValuePair.swift            # Codable struct for headers/params
+│       ├── FocusedValues.swift       # FocusedValueKeys for menu commands
+│       └── KeyValuePair.swift        # Codable struct for headers/params
 ├── PostKitTests/
-│   └── PostKitTests.swift            # All unit tests (CurlParser, Interpolator, etc.)
+│   ├── PostKitTests.swift            # All unit tests
+│   └── Mocks/                        # Mock implementations for Factory-based testing
+│       ├── MockHTTPClient.swift
+│       └── MockKeychainManager.swift
 └── PostKitUITests/
     ├── PostKitUITests.swift
     └── PostKitUITestsLaunchTests.swift
@@ -212,33 +222,94 @@ RequestCollection
 
 Every relationship uses `.cascade` delete rules. Deleting a collection removes all its folders, requests, environments, variables, and history.
 
-### Dependency Injection via SwiftUI Environment
+### Dependency Injection via Factory Container
 
-The HTTP client is injected via a custom `EnvironmentKey`:
+PostKit uses **Factory 2.5.x** (`import FactoryKit`) as the unified dependency injection container. All services are registered in `DI/Container+*.swift` extensions and resolved via the `@Injected` property wrapper.
+
+#### Container Organization
 
 ```swift
-// Definition (Utilities/Environment+HTTPClient.swift)
-private struct HTTPClientKey: EnvironmentKey {
-    static let defaultValue: HTTPClientProtocol = URLSessionHTTPClient()
-}
-
-extension EnvironmentValues {
-    var httpClient: HTTPClientProtocol {
-        get { self[HTTPClientKey.self] }
-        set { self[HTTPClientKey.self] = newValue }
+// DI/Container+Services.swift
+extension Container {
+    var httpClient: Factory<HTTPClientProtocol> {
+        self {
+            do { return try CurlHTTPClient() }
+            catch { return URLSessionHTTPClient() }
+        }.singleton
+    }
+    
+    var keychainManager: Factory<KeychainManagerProtocol> {
+        self { KeychainManager.shared }.singleton
+    }
+    
+    @MainActor
+    var fileExporter: Factory<FileExporterProtocol> {
+        self { @MainActor in FileExporter() }
     }
 }
 
-// Usage in views
-@Environment(\.httpClient) private var httpClient
+// DI/Container+Parsers.swift
+extension Container {
+    var curlParser: Factory<CurlParserProtocol> {
+        self { CurlParser() }  // .unique (default)
+    }
+    
+    var variableInterpolator: Factory<VariableInterpolatorProtocol> {
+        self { VariableInterpolator() }.singleton
+    }
+}
 ```
 
-For testing, inject a mock:
+#### MANDATORY Pattern for @Observable Classes
+
+Factory `@Injected` properties **MUST** be marked `@ObservationIgnored` in `@Observable` classes. Without it, the Observation framework tracks dependency resolution as state changes, causing infinite re-render loops or compilation errors.
 
 ```swift
-ContentView()
-    .environment(\.httpClient, MockHTTPClient())
+@Observable
+final class RequestViewModel {
+    @ObservationIgnored @Injected(\.httpClient) private var httpClient
+    @ObservationIgnored @Injected(\.variableInterpolator) private var interpolator
+}
 ```
+
+#### Injection in Views
+
+```swift
+struct CurlImportSheet: View {
+    @Injected(\.curlParser) private var parser
+    // ...
+}
+```
+
+#### Direct Resolution in @Model Types
+
+`@Model` types cannot use property wrappers. Use `Container.shared` direct resolution:
+
+```swift
+// In Variable.swift
+Container.shared.keychainManager().store(key: keychainKey, value: newValue)
+```
+
+#### Testing with Mocks
+
+Use the `.container` trait at `@Suite` level for test isolation:
+
+```swift
+import FactoryTesting
+
+@Suite(.container)
+struct RequestViewModelTests {
+    @Test func executeRequestReturnsResponse() async {
+        Container.shared.httpClient.register { MockHTTPClient(response: .success) }
+        let vm = RequestViewModel(modelContext: mockModelContext)
+        // ...
+    }
+}
+```
+
+#### What Stays as @Environment
+
+- `\.modelContext` — SwiftData's `ModelContext` is not `Sendable` and is lifecycle-managed by SwiftUI
 
 ### @Transient Enum Bridging
 
@@ -513,14 +584,17 @@ PostKit runs in an App Sandbox with three entitlements:
 
 ## 8. Testing
 
-### Framework: Swift Testing
+### Framework: Swift Testing + FactoryTesting
 
-PostKit uses Apple's Swift Testing framework (not XCTest). Tests are defined as structs with `@Test` functions.
+PostKit uses Apple's Swift Testing framework (not XCTest) with FactoryTesting for DI test isolation. Tests are defined as structs with `@Test` functions.
 
 ```swift
 import Testing
+import FactoryKit
+import FactoryTesting
 @testable import PostKit
 
+@Suite(.container)  // Isolates Factory container for this test suite
 struct MyFeatureTests {
     @Test func basicBehavior() {
         let result = myFunction()
@@ -531,6 +605,13 @@ struct MyFeatureTests {
         #expect(throws: MyError.invalidInput) {
             try myThrowingFunction(invalid: true)
         }
+    }
+    
+    @Test func withMockDependency() async {
+        // Register mock for this test
+        Container.shared.httpClient.register { MockHTTPClient(response: .success) }
+        let vm = RequestViewModel(modelContext: mockModelContext)
+        // ...
     }
 }
 ```
@@ -547,7 +628,7 @@ struct MyFeatureTests {
 
 ### Test Organization
 
-All tests are in a single file: `PostKitTests/PostKitTests.swift`. Tests are grouped by struct:
+All tests are in `PostKitTests/`. Tests are grouped by struct:
 
 | Struct | What It Tests | Test Count |
 |--------|--------------|------------|
@@ -556,6 +637,13 @@ All tests are in a single file: `PostKitTests/PostKitTests.swift`. Tests are gro
 | `KeyValuePairTests` | Encode/decode round-trips, edge cases | 7 |
 | `AuthConfigTests` | Auth config serialization and type properties | 10 |
 | `OpenAPIParserTests` | OpenAPI 3.x spec parsing | 12 |
+| `CurlHTTPClientTests` | HTTP client internals, timing, headers | 25 |
+| `RequestViewModelTests` | ViewModel request building, execution, cancellation | 13 |
+| `KeychainManagerProtocolTests` | Mock Keychain behavior | 5 |
+
+Mock implementations are in `PostKitTests/Mocks/`:
+- `MockHTTPClient` — Actor-based mock for HTTP testing
+- `MockKeychainManager` — In-memory Keychain mock for unit tests
 
 ### What to Test
 
@@ -677,43 +765,52 @@ Shortcuts are implemented via two mechanisms:
 
 | # | File | Purpose |
 |---|------|---------|
-| 1 | `PostKitApp.swift` | App entry point, SwiftData schema, import menus |
+| 1 | `PostKitApp.swift` | App entry point, SwiftData schema, import menus, singleton force-resolution |
 | 2 | `PostKit.entitlements` | App Sandbox configuration |
-| 3 | `Models/RequestCollection.swift` | Top-level collection with cascade relationships |
-| 4 | `Models/Folder.swift` | Folder within a collection |
-| 5 | `Models/HTTPRequest.swift` | Request model, @Transient enum bridging, authConfig caching |
-| 6 | `Models/APIEnvironment.swift` | Environment with isActive flag |
-| 7 | `Models/Variable.swift` | Key-value with Keychain-backed secureValue |
-| 8 | `Models/HistoryEntry.swift` | Execution history record |
-| 9 | `Models/Enums/HTTPMethod.swift` | HTTP methods with color mapping |
-| 10 | `Models/Enums/BodyType.swift` | Body types with contentType mapping |
-| 11 | `Models/Enums/AuthType.swift` | Auth types, AuthConfig, Keychain integration |
-| 12 | `ViewModels/RequestViewModel.swift` | @Observable VM: execution, history, auth, interpolation |
-| 13 | `Views/ContentView.swift` | NavigationSplitView 3-pane layout |
-| 14 | `Views/PostKitCommands.swift` | Menu bar keyboard shortcuts |
-| 15 | `Views/Sidebar/CollectionsSidebar.swift` | Collection list with CRUD |
-| 16 | `Views/Sidebar/CollectionRow.swift` | Single collection row |
-| 17 | `Views/RequestList/RequestListView.swift` | Request list for selected collection |
-| 18 | `Views/RequestList/RequestRow.swift` | Single request row (method badge + name) |
-| 19 | `Views/RequestDetail/RequestDetailView.swift` | Request editor + response viewer split |
-| 20 | `Views/RequestDetail/RequestEditor/RequestEditorPane.swift` | Headers, params, body, auth tabs |
-| 21 | `Views/RequestDetail/RequestEditor/URLBar.swift` | Method picker + URL field + Send button |
-| 22 | `Views/RequestDetail/ResponseViewer/ResponseViewerPane.swift` | Body, headers, timing tabs |
-| 23 | `Views/Environment/EnvironmentPicker.swift` | Toolbar environment selector |
-| 24 | `Views/Import/CurlImportSheet.swift` | cURL paste-and-import sheet |
-| 25 | `Views/Import/OpenAPIImportSheet.swift` | OpenAPI file picker and import |
-| 26 | `Services/HTTPClient.swift` | Actor-based URLSession client with memory threshold |
-| 27 | `Services/CurlParser.swift` | cURL command tokenizer and parser |
-| 28 | `Services/OpenAPIParser.swift` | OpenAPI 3.x spec parser |
-| 29 | `Services/FileExporter.swift` | JSON export with redaction, import |
-| 30 | `Services/VariableInterpolator.swift` | `{{variable}}` template engine |
-| 31 | `Services/KeychainManager.swift` | macOS Keychain CRUD wrapper |
-| 32 | `Services/Protocols/HTTPClientProtocol.swift` | Protocol + HTTPResponse struct |
-| 33 | `Utilities/Environment+HTTPClient.swift` | SwiftUI EnvironmentKey for HTTP client DI |
-| 34 | `Utilities/FocusedValues.swift` | FocusedValueKeys for menu-to-view bridging |
-| 35 | `Utilities/KeyValuePair.swift` | Codable struct for headers/params with encode/decode |
-| 36 | `PostKitTests/PostKitTests.swift` | All unit tests (5 test suites, 61 tests) |
-| 37 | `PostKitUITests/PostKitUITests.swift` | UI test placeholder |
+| 3 | `DI/Container+Services.swift` | Factory registrations: httpClient, keychainManager, fileExporter |
+| 4 | `DI/Container+Parsers.swift` | Factory registrations: curlParser, openAPIParser, variableInterpolator |
+| 5 | `Models/RequestCollection.swift` | Top-level collection with cascade relationships |
+| 6 | `Models/Folder.swift` | Folder within a collection |
+| 7 | `Models/HTTPRequest.swift` | Request model, @Transient enum bridging, authConfig caching |
+| 8 | `Models/APIEnvironment.swift` | Environment with isActive flag |
+| 9 | `Models/Variable.swift` | Key-value with Keychain-backed secureValue, Factory resolution |
+| 10 | `Models/HistoryEntry.swift` | Execution history record |
+| 11 | `Models/Enums/HTTPMethod.swift` | HTTP methods with color mapping |
+| 12 | `Models/Enums/BodyType.swift` | Body types with contentType mapping |
+| 13 | `Models/Enums/AuthType.swift` | Auth types, AuthConfig, Keychain integration via Factory |
+| 14 | `ViewModels/RequestViewModel.swift` | @Observable VM with @ObservationIgnored @Injected deps |
+| 15 | `Views/ContentView.swift` | NavigationSplitView 3-pane layout |
+| 16 | `Views/PostKitCommands.swift` | Menu bar keyboard shortcuts |
+| 17 | `Views/Sidebar/CollectionsSidebar.swift` | Collection list with CRUD |
+| 18 | `Views/Sidebar/CollectionRow.swift` | Single collection row with Keychain cleanup |
+| 19 | `Views/RequestList/RequestListView.swift` | Request list with Keychain cleanup on delete |
+| 20 | `Views/RequestList/RequestRow.swift` | Single request row (method badge + name) |
+| 21 | `Views/RequestDetail/RequestDetailView.swift` | Request editor + response viewer split |
+| 22 | `Views/RequestDetail/RequestEditor/RequestEditorPane.swift` | Headers, params, body, auth tabs |
+| 23 | `Views/RequestDetail/RequestEditor/URLBar.swift` | Method picker + URL field + Send button |
+| 24 | `Views/RequestDetail/ResponseViewer/ResponseViewerPane.swift` | Body, headers, timing tabs |
+| 25 | `Views/Environment/EnvironmentPicker.swift` | Toolbar environment selector, Keychain cleanup |
+| 26 | `Views/Import/CurlImportSheet.swift` | cURL paste-and-import with @Injected parser |
+| 27 | `Views/Import/OpenAPIImportSheet.swift` | OpenAPI file picker with @Injected parser |
+| 28 | `Services/CurlHTTPClient.swift` | libcurl-based HTTP client (primary engine) |
+| 29 | `Services/HTTPClient.swift` | URLSession fallback client |
+| 30 | `Services/CurlParser.swift` | cURL command tokenizer and parser |
+| 31 | `Services/OpenAPIParser.swift` | OpenAPI 3.x spec parser |
+| 32 | `Services/FileExporter.swift` | JSON export with redaction, import |
+| 33 | `Services/VariableInterpolator.swift` | `{{variable}}` template engine |
+| 34 | `Services/KeychainManager.swift` | macOS Keychain CRUD wrapper singleton |
+| 35 | `Services/Protocols/HTTPClientProtocol.swift` | Protocol + HTTPResponse struct |
+| 36 | `Services/Protocols/KeychainManagerProtocol.swift` | Keychain protocol with extension defaults |
+| 37 | `Services/Protocols/CurlParserProtocol.swift` | cURL parser protocol |
+| 38 | `Services/Protocols/OpenAPIParserProtocol.swift` | OpenAPI parser protocol |
+| 39 | `Services/Protocols/VariableInterpolatorProtocol.swift` | Interpolator protocol |
+| 40 | `Services/Protocols/FileExporterProtocol.swift` | File exporter protocol |
+| 41 | `Utilities/FocusedValues.swift` | FocusedValueKeys for menu-to-view bridging |
+| 42 | `Utilities/KeyValuePair.swift` | Codable struct for headers/params with encode/decode |
+| 43 | `PostKitTests/PostKitTests.swift` | All unit tests (8 test suites, 104+ tests) |
+| 44 | `PostKitTests/Mocks/MockHTTPClient.swift` | Actor-based HTTP mock for testing |
+| 45 | `PostKitTests/Mocks/MockKeychainManager.swift` | In-memory Keychain mock for testing |
+| 46 | `PostKitUITests/PostKitUITests.swift` | UI test placeholder |
 
 > **Note:** All file paths are relative to `PostKit/PostKit/` (the Xcode source target root).
 
@@ -724,3 +821,4 @@ Shortcuts are implemented via two mechanisms:
 | Date | Change |
 |------|--------|
 | 2026-02-13 | Initial developer guide for PostKit MVP |
+| 2026-02-14 | Updated for Factory DI container, libcurl HTTP client, added ViewModel tests |

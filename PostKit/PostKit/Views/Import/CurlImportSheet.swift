@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FactoryKit
 
 struct CurlImportSheet: View {
     @Environment(\.modelContext) private var modelContext
@@ -11,7 +12,7 @@ struct CurlImportSheet: View {
     @State private var parseError: String?
     @State private var parsedPreview: ParsedRequest?
     
-    private let parser = CurlParser()
+    @Injected(\.curlParser) private var parser
     
     var body: some View {
         VStack(spacing: 16) {

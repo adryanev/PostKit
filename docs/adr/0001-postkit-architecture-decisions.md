@@ -1,8 +1,8 @@
 # PostKit Architecture Decision Records
 
-> **Last updated:** 2026-02-13
+> **Last updated:** 2026-02-14
 > **Applies to:** PostKit v1.0 (MVP)
-> **Total decisions:** 19
+> **Total decisions:** 20
 
 This document consolidates all significant architecture decisions made during the development of PostKit, a native macOS API client. Each decision follows the standard ADR format: Context, Decision, Alternatives Considered, and Consequences.
 
@@ -31,6 +31,7 @@ This document consolidates all significant architecture decisions made during th
 | [017](#adr-017-app-sandbox-with-minimal-entitlements) | App Sandbox with minimal entitlements |
 | [018](#adr-018-macos-14-sonoma-minimum-target) | macOS 14+ (Sonoma) minimum target |
 | [019](#adr-019-libcurl-http-client-engine) | libcurl HTTP Client Engine |
+| [020](#adr-020-factory-dependency-injection-container) | Factory Dependency Injection Container |
 
 ---
 
@@ -116,7 +117,7 @@ Each new dependency must be justified in this ADR or in a new ADR entry.
 - (-) Introduces (minimal) SPM resolution time and potential version conflicts
 
 **Current Dependencies:**
-- *None yet* — Apple frameworks still cover all current functionality
+- **Factory 2.5.x** (`https://github.com/hmlongco/Factory.git`) — Unified dependency injection container. Justified: DI is infrastructure touching every layer; `@Environment` approach hit architectural ceiling (ViewModels can't self-resolve); enables ViewModel testing; ~1,000 LOC with no transitive dependencies. See ADR-020 for full decision rationale.
 
 **References:**
 - `PostKit/Services/KeychainManager.swift` — Direct Security framework usage (no KeychainAccess needed)
@@ -568,6 +569,62 @@ Each new dependency must be justified in this ADR or in a new ADR entry.
 
 ---
 
+### ADR-020: Factory Dependency Injection Container
+
+**Status:** Accepted
+
+**Context:** PostKit had three inconsistent dependency injection mechanisms:
+1. `@Environment(\.httpClient)` — SwiftUI Environment, only accessible in views, not ViewModels
+2. `KeychainManager.shared` — Singleton accessed from SwiftData `@Model` types, untestable
+3. Direct instantiation — `CurlParser()`, `OpenAPIParser()`, `VariableInterpolator()`, `FileExporter()`
+
+These patterns caused:
+- `RequestViewModel` required `httpClient` to be passed from the view via `.onAppear` — awkward initialization
+- `KeychainManager.shared` called directly from `@Model` types — impossible to mock in tests
+- No ViewModel tests existed because there was no way to inject mock dependencies
+- 5 of 6 services lacked protocol abstractions
+
+**Decision:** Adopt Factory 2.5.x (`import FactoryKit`) as the unified DI container. Factory is a lightweight (~1,000 LOC), compile-time safe, Swift 6 concurrency-compatible framework with native `@Observable` support and Swift Testing integration.
+
+**Alternatives Considered:**
+- **Keep `@Environment`:** ViewModels cannot self-resolve; no test override mechanism
+- **Protocol + static var (simpler):** Solves KeychainManager testability only; doesn't address view passthrough; no test isolation trait
+- **Swinject:** Runtime registration, no compile-time safety, heavier
+- **swift-dependencies (TCA):** Designed for Composable Architecture, over-engineered for MVVM
+- **Needle (Uber):** Code generation required, complex setup
+
+**Consequences:**
+- (+) ViewModels resolve their own dependencies — no view-to-ViewModel passthrough
+- (+) Test mock injection via `.container` trait with Swift Testing
+- (+) Single source of truth for the dependency graph in `DI/Container+*.swift`
+- (+) Protocol-based abstractions for all services (6/6 up from 1/6)
+- (+) Compile-time type safety with Factory's typed closures
+- (+) First third-party dependency justified under ADR-003
+- (-) Service locator pattern internally (acceptable trade-off for PostKit's scale)
+- (-) `@ObservationIgnored` required on all `@Injected` properties in `@Observable` classes
+- (-) `@Model` types use `Container.shared` direct resolution (compromise for SwiftData constraints)
+
+**Security Considerations:**
+- `KeychainManager.private init()` and `static let shared` preserved — Factory wraps existing singleton
+- Singletons force-resolved at app launch to prevent runtime mock injection
+- Runtime type assertion in release builds guards against production tampering
+- All mock types in test target only, never compiled into release builds
+
+**Scope Assignments:**
+- `httpClient` → `.singleton` (actor with internal state, includes CurlHTTPClient with URLSessionHTTPClient fallback)
+- `keychainManager` → `.singleton` (wraps existing singleton, Keychain is system resource)
+- `variableInterpolator` → `.singleton` (compiles NSRegularExpression in init)
+- Parsers → `.unique` (stateless, lightweight)
+- `fileExporter` → `.unique` with `@MainActor` (uses NSSavePanel)
+
+**References:**
+- `PostKit/DI/Container+Services.swift` — httpClient, keychainManager, fileExporter registrations
+- `PostKit/DI/Container+Parsers.swift` — curlParser, openAPIParser, variableInterpolator registrations
+- `PostKit/Services/Protocols/` — All protocol definitions
+- `PostKitTests/Mocks/` — MockHTTPClient, MockKeychainManager implementations
+
+---
+
 ## Revision History
 
 | Date | Change |
@@ -575,3 +632,4 @@ Each new dependency must be justified in this ADR or in a new ADR entry.
 | 2026-02-13 | Initial document — 18 ADRs for PostKit MVP |
 | 2026-02-14 | ADR-003: Updated from "Zero External Dependencies" to "Minimal External Dependencies" |
 | 2026-02-14 | ADR-019: Added libcurl HTTP Client Engine decision |
+| 2026-02-14 | ADR-020: Added Factory Dependency Injection Container decision |

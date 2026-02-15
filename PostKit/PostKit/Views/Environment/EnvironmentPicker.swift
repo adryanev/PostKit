@@ -91,23 +91,33 @@ struct EnvironmentEditorSheet: View {
     @State private var newEnvironmentName = ""
     
     var body: some View {
-        HSplitView {
-            List(selection: $selectedEnvironment) {
-                ForEach(environments) { env in
-                    Text(env.name)
-                        .tag(env)
-                }
-            }
-            .frame(minWidth: 150, maxWidth: 200)
-            
-            if let env = selectedEnvironment {
-                EnvironmentVariablesEditor(environment: env)
-            } else {
+        Group {
+            if environments.isEmpty {
                 ContentUnavailableView(
-                    "Select Environment",
+                    "No Environments",
                     systemImage: "globe",
-                    description: Text("Choose an environment to edit its variables")
+                    description: Text("Add an environment to manage variables")
                 )
+            } else {
+                HSplitView {
+                    List(selection: $selectedEnvironment) {
+                        ForEach(environments) { env in
+                            Text(env.name)
+                                .tag(env)
+                        }
+                    }
+                    .frame(minWidth: 150, maxWidth: 200)
+
+                    if let env = selectedEnvironment {
+                        EnvironmentVariablesEditor(environment: env)
+                    } else {
+                        ContentUnavailableView(
+                            "Select Environment",
+                            systemImage: "globe",
+                            description: Text("Choose an environment to edit its variables")
+                        )
+                    }
+                }
             }
         }
         .frame(width: 600, height: 400)
@@ -130,6 +140,9 @@ struct EnvironmentEditorSheet: View {
                 if selectedEnvironment != nil {
                     Button(role: .destructive) {
                         if let env = selectedEnvironment {
+                            for variable in env.variables {
+                                variable.deleteSecureValue()
+                            }
                             modelContext.delete(env)
                             selectedEnvironment = nil
                         }
@@ -196,7 +209,10 @@ struct EnvironmentVariablesEditor: View {
                     
                     TableColumn("Value") { $variable in
                         if variable.isSecret {
-                            SecureField("Value", text: $variable.value)
+                            SecureField("Value", text: Binding(
+                                get: { variable.secureValue },
+                                set: { variable.secureValue = $0 }
+                            ))
                         } else {
                             TextField("Value", text: $variable.value)
                         }

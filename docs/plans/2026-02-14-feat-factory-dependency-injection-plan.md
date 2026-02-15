@@ -190,12 +190,12 @@ The ADR entry should also acknowledge the service locator trade-off and document
 
 ##### Tasks
 
-- [ ] **Add Factory SPM package** to `PostKit.xcodeproj`
+- [x] **Add Factory SPM package** to `PostKit.xcodeproj`
   - URL: `https://github.com/hmlongco/Factory.git`, version `2.5.0`+
   - Add `FactoryKit` product to `PostKit` target
   - Add `FactoryTesting` product to `PostKitTests` target
 
-- [ ] **Create service protocols** for services that benefit from abstraction
+- [x] **Create service protocols** for services that benefit from abstraction
 
   > **Research Insight (Code Simplicity Reviewer):** `CurlParser`, `OpenAPIParser`, and `VariableInterpolator` are stateless, pure-function services. You never mock pure functions — you test them with real instances. Protocols for these add indirection without testability gain. However, for **consistency** across all Factory registrations, protocols are included. If this feels like too much ceremony, they can be omitted and the container can register concrete types directly.
 
@@ -207,7 +207,7 @@ The ADR entry should also acknowledge the service locator trade-off and document
   - Each protocol must be `: Sendable` (matching existing service `Sendable` conformance)
   - `FileExporterProtocol` must be `@MainActor` at the protocol level (not just the container registration)
 
-- [ ] **Design `KeychainManagerProtocol` with minimal surface area**
+- [x] **Design `KeychainManagerProtocol` with minimal surface area**
 
   > **Research Insight (Pattern Recognition, Architecture Strategist):** Define only the three primitive methods. Provide convenience methods as protocol extension defaults to avoid mock implementations needing to implement trivial wrappers.
 
@@ -238,21 +238,21 @@ The ADR entry should also acknowledge the service locator trade-off and document
   }
   ```
 
-- [ ] **Conform existing services** to their new protocols
+- [x] **Conform existing services** to their new protocols
   - `KeychainManager: KeychainManagerProtocol`
   - `CurlParser: CurlParserProtocol`
   - `OpenAPIParser: OpenAPIParserProtocol`
   - `VariableInterpolator: VariableInterpolatorProtocol`
   - `FileExporter: FileExporterProtocol`
 
-- [ ] **Create Factory container extensions** organized by domain:
+- [x] **Create Factory container extensions** organized by domain:
 
   > **Research Insight (Pattern Recognition):** `Container+Export.swift` with a single registration is over-segmentation. Merge `fileExporter` into `Container+Services.swift`.
 
   - `DI/Container+Services.swift` — httpClient, keychainManager, fileExporter
   - `DI/Container+Parsers.swift` — curlParser, openAPIParser, variableInterpolator
 
-- [ ] **Build and verify** — project compiles, all existing tests pass
+- [x] **Build and verify** — project compiles, all existing tests pass
 
 **Files created:**
 ```
@@ -361,11 +361,11 @@ Replace direct instantiation with `@Injected`:
 | `CurlImportSheet.swift:14` | `private let parser = CurlParser()` | `@Injected(\.curlParser) private var parser` |
 | `OpenAPIImportSheet.swift:18` | `private let parser = OpenAPIParser()` | `@Injected(\.openAPIParser) private var parser` |
 
-- [ ] Update `CurlImportSheet` to use `@Injected(\.curlParser)`
-- [ ] Update `OpenAPIImportSheet` to use `@Injected(\.openAPIParser)`
-- [ ] Build and run existing tests — parsers are stateless, behavior unchanged
-- [ ] Verify SwiftUI Previews still work for these views (default registrations provide real implementations)
-- [ ] **Commit:** `feat: migrate parsers to Factory DI`
+- [x] Update `CurlImportSheet` to use `@Injected(\.curlParser)`
+- [x] Update `OpenAPIImportSheet` to use `@Injected(\.openAPIParser)`
+- [x] Build and run existing tests — parsers are stateless, behavior unchanged
+- [x] Verify SwiftUI Previews still work for these views (default registrations provide real implementations)
+- [x] **Commit:** `feat: migrate parsers to Factory DI`
 
 **Step 2b: VariableInterpolator in ViewModel**
 
@@ -382,9 +382,9 @@ Replace direct instantiation with `@Injected`:
 @ObservationIgnored @Injected(\.variableInterpolator) private var interpolator
 ```
 
-- [ ] Update `RequestViewModel` to use `@ObservationIgnored @Injected(\.variableInterpolator)`
-- [ ] Build and verify
-- [ ] **Commit:** `feat: migrate VariableInterpolator to Factory DI`
+- [x] Update `RequestViewModel` to use `@ObservationIgnored @Injected(\.variableInterpolator)`
+- [x] Build and verify
+- [x] **Commit:** `feat: migrate VariableInterpolator to Factory DI`
 
 **Step 2c: FileExporter**
 
@@ -396,11 +396,11 @@ Replace direct instantiation with `@Injected`:
 | `PostKitApp.swift` `exportCollection()` | `let exporter = FileExporter()` | `let exporter = Container.shared.fileExporter()` |
 | `PostKitApp.swift` `importCollection()` | `let exporter = FileExporter()` | `let exporter = Container.shared.fileExporter()` |
 
-- [ ] Update `CollectionRow` to use `@Injected(\.fileExporter)`
-- [ ] Update `PostKitApp.exportCollection()` to resolve from container
-- [ ] Update `PostKitApp.importCollection()` to resolve from container
-- [ ] Build and verify
-- [ ] **Commit:** `feat: migrate FileExporter to Factory DI`
+- [x] Update `CollectionRow` to use `@Injected(\.fileExporter)`
+- [x] Update `PostKitApp.exportCollection()` to resolve from container
+- [x] Update `PostKitApp.importCollection()` to resolve from container
+- [x] Build and verify
+- [x] **Commit:** `feat: migrate FileExporter to Factory DI`
 
 **Step 2d: HTTPClient (replaces @Environment)**
 
@@ -415,14 +415,14 @@ This is the core migration — removing the custom `EnvironmentKey`.
 | `PostKitApp.swift:~45` | `private let httpClient: HTTPClientProtocol = { ... }()` | Remove — Factory container handles this |
 | `PostKitApp.swift:~79` | `.environment(\.httpClient, httpClient)` | Remove |
 
-- [ ] Update `RequestViewModel` — remove `httpClient` from `init`, use `@ObservationIgnored @Injected`
-- [ ] Update `RequestViewModel.init` — remove `httpClient` parameter, keep only `modelContext`
-- [ ] Update `RequestDetailView` — remove `@Environment(\.httpClient)`, simplify ViewModel creation
-- [ ] Remove `httpClient` stored property from `PostKitApp`
-- [ ] Remove `.environment(\.httpClient, httpClient)` modifier from `PostKitApp`
-- [ ] Delete `Utilities/Environment+HTTPClient.swift` — no longer needed
-- [ ] Build and verify
-- [ ] **Commit:** `feat: migrate HTTPClient to Factory DI, remove @Environment`
+- [x] Update `RequestViewModel` — remove `httpClient` from `init`, use `@ObservationIgnored @Injected`
+- [x] Update `RequestViewModel.init` — remove `httpClient` parameter, keep only `modelContext`
+- [x] Update `RequestDetailView` — remove `@Environment(\.httpClient)`, simplify ViewModel creation
+- [x] Remove `httpClient` stored property from `PostKitApp`
+- [x] Remove `.environment(\.httpClient, httpClient)` modifier from `PostKitApp`
+- [x] Delete `Utilities/Environment+HTTPClient.swift` — no longer needed
+- [x] Build and verify
+- [x] **Commit:** `feat: migrate HTTPClient to Factory DI, remove @Environment`
 
 **Step 2e: KeychainManager (replaces singleton)**
 
@@ -452,14 +452,14 @@ This is functionally equivalent (both access a singleton) but enables test overr
 
 > **Research Insight (Architecture Strategist):** This is a service locator pattern in `@Model` types — a necessary compromise. Consider extracting Keychain operations from `Variable` and `AuthConfig` into the ViewModel or a dedicated service in a follow-up PR. For this migration, the direct resolution is acceptable.
 
-- [ ] **Keep** `private init()` and `static let shared` on `KeychainManager`
-- [ ] Add `KeychainManagerProtocol` conformance to `KeychainManager`
-- [ ] Update `Variable.swift` — replace `KeychainManager.shared` with `Container.shared.keychainManager()`
-- [ ] Update `AuthType.swift` (all 3 methods: `storeSecrets`, `retrieveSecrets`, `deleteSecrets`) — replace `KeychainManager.shared` with `Container.shared.keychainManager()`
-- [ ] Add `import FactoryKit` to `Variable.swift` and `AuthType.swift`
-- [ ] Build and verify Keychain operations still work (manual test: create variable with secret, retrieve, delete)
-- [ ] Verify Keychain cleanup on request/variable deletion
-- [ ] **Commit:** `feat: migrate KeychainManager to Factory DI`
+- [x] **Keep** `private init()` and `static let shared` on `KeychainManager`
+- [x] Add `KeychainManagerProtocol` conformance to `KeychainManager`
+- [x] Update `Variable.swift` — replace `KeychainManager.shared` with `Container.shared.keychainManager()`
+- [x] Update `AuthType.swift` (all 3 methods: `storeSecrets`, `retrieveSecrets`, `deleteSecrets`) — replace `KeychainManager.shared` with `Container.shared.keychainManager()`
+- [x] Add `import FactoryKit` to `Variable.swift` and `AuthType.swift`
+- [x] Build and verify Keychain operations still work (manual test: create variable with secret, retrieve, delete)
+- [x] Verify Keychain cleanup on request/variable deletion
+- [x] **Commit:** `feat: migrate KeychainManager to Factory DI`
 
 **Step 2f: Security hardening — Force-resolve singletons at launch**
 
@@ -483,10 +483,10 @@ init() {
 }
 ```
 
-- [ ] Add singleton force-resolution to `PostKitApp.init()`
-- [ ] Add runtime type assertion for release builds
-- [ ] Build and verify
-- [ ] **Commit:** `feat: add DI security hardening`
+- [x] Add singleton force-resolution to `PostKitApp.init()`
+- [x] Add runtime type assertion for release builds
+- [x] Build and verify
+- [x] **Commit:** `feat: add DI security hardening`
 
 **Files modified in Phase 2:**
 ```

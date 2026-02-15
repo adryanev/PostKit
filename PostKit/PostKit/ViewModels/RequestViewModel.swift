@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftData
+import FactoryKit
 
 /// Encapsulates the business logic previously embedded in `RequestDetailView`.
 /// Manages HTTP request execution, response state, history recording, and
@@ -15,12 +16,17 @@ final class RequestViewModel {
     var error: Error?
     var activeTab: ResponseTab = .body
     private(set) var currentTaskID: UUID?
+    @ObservationIgnored private(set) var currentTask: Task<Void, Never>?
 
     // MARK: - Dependencies
 
-    private let httpClient: HTTPClientProtocol
     private let modelContext: ModelContext
-    private let interpolator = VariableInterpolator()
+    
+    // Factory @Injected properties MUST be marked @ObservationIgnored in @Observable classes.
+    // Without it, the Observation framework tracks dependency resolution as state changes,
+    // causing infinite re-render loops or compilation errors.
+    @ObservationIgnored @Injected(\.httpClient) private var httpClient
+    @ObservationIgnored @Injected(\.variableInterpolator) private var interpolator
 
     // MARK: - History Cleanup
 
@@ -30,8 +36,7 @@ final class RequestViewModel {
 
     // MARK: - Init
 
-    init(httpClient: HTTPClientProtocol, modelContext: ModelContext) {
-        self.httpClient = httpClient
+    init(modelContext: ModelContext) {
         self.modelContext = modelContext
     }
 
@@ -51,19 +56,19 @@ final class RequestViewModel {
         let taskID = UUID()
         currentTaskID = taskID
 
-        Task {
+        currentTask = Task { @MainActor in
             do {
                 let urlRequest = try buildURLRequest(for: request)
                 let httpResponse = try await httpClient.execute(urlRequest, taskID: taskID)
 
                 guard taskID == self.currentTaskID else { return }
-                
+
                 self.response = httpResponse
                 self.isSending = false
                 self.saveHistory(httpResponse, for: request)
             } catch {
                 guard taskID == self.currentTaskID else { return }
-                
+
                 self.error = error
                 self.isSending = false
             }
@@ -72,7 +77,7 @@ final class RequestViewModel {
 
     func cancelRequest() {
         if let taskID = currentTaskID {
-            Task {
+            Task { @MainActor in
                 await httpClient.cancel(taskID: taskID)
             }
         }
@@ -162,7 +167,7 @@ final class RequestViewModel {
         }
 
         for variable in activeEnv.variables where variable.isEnabled {
-            variables[variable.key] = variable.value
+            variables[variable.key] = variable.secureValue
         }
 
         return variables

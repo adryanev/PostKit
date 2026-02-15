@@ -34,7 +34,7 @@ enum OpenAPIParserError: LocalizedError {
     }
 }
 
-final class OpenAPIParser: Sendable {
+final class OpenAPIParser: OpenAPIParserProtocol, Sendable {
     func parse(_ data: Data) throws -> (info: OpenAPIInfo, endpoints: [OpenAPIEndpoint], servers: [String]) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw OpenAPIParserError.invalidFormat

@@ -11,7 +11,7 @@ enum InterpolationError: LocalizedError {
     }
 }
 
-final class VariableInterpolator: Sendable {
+final class VariableInterpolator: VariableInterpolatorProtocol, Sendable {
     private let variableRegex: NSRegularExpression
 
     init() {
