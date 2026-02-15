@@ -8,79 +8,36 @@ struct EnvironmentPicker: View {
     @State private var showingEnvironmentEditor = false
     
     var body: some View {
-        Menu {
-            Button {
-                selectedEnvironment = nil
-                deactivateAllEnvironments()
-            } label: {
-                HStack {
-                    Text("No Environment")
-                    if selectedEnvironment == nil {
-                        Spacer()
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
+        Picker("", selection: $selectedEnvironment) {
+            Text("No Environment").tag(nil as APIEnvironment?)
             
             Divider()
             
             ForEach(allEnvironments) { env in
-                Button {
-                    selectEnvironment(env)
-                } label: {
-                    HStack {
-                        Text(env.name)
-                        if selectedEnvironment?.id == env.id {
-                            Spacer()
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
+                Text(env.name).tag(env as APIEnvironment?)
             }
-            
-            Divider()
-            
+        }
+        .pickerStyle(.menu)
+        .frame(minWidth: 150, alignment: .leading)
+        .onAppear {
+            selectedEnvironment = activeEnvironments.first
+        }
+        .onChange(of: selectedEnvironment) { newValue in
+            if let env = newValue {
+                selectEnvironment(env)
+            } else {
+                deactivateAllEnvironments()
+            }
+        }
+        .contextMenu {
             Button {
                 showingEnvironmentEditor = true
             } label: {
                 Label("Manage Environments...", systemImage: "gear")
             }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "globe")
-                    .foregroundStyle(.secondary)
-                
-                if let env = selectedEnvironment ?? activeEnvironments.first {
-                    Text(env.name)
-                        .lineLimit(1)
-                } else {
-                    Text("No Environment")
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(minWidth: 150)
-            .background(Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(6)
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-            )
         }
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
         .sheet(isPresented: $showingEnvironmentEditor) {
             EnvironmentEditorSheet()
-        }
-        .onAppear {
-            selectedEnvironment = activeEnvironments.first
         }
     }
     
