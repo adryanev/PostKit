@@ -504,22 +504,31 @@ struct RemovedEndpointRow: View {
     @Binding var decision: EndpointDecision?
     
     var body: some View {
-        HStack {
-            Text(snapshot.method.rawValue)
-                .fontWeight(.semibold)
-                .foregroundStyle(snapshot.method.color)
-                .frame(width: 50)
-            Text(snapshot.path)
-            Text(snapshot.name)
-                .foregroundStyle(.secondary)
-            Spacer()
-            
-            Picker("", selection: $decision) {
-                Text("Keep").tag(EndpointDecision.keepExisting(requestID: snapshot.requestID ?? UUID()) as EndpointDecision?)
-                Text("Delete").tag(EndpointDecision.deleteExisting(requestID: snapshot.requestID ?? UUID()) as EndpointDecision?)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(snapshot.method.rawValue)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(snapshot.method.color)
+                    .frame(width: 50)
+                Text(snapshot.path)
+                Text(snapshot.name)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                
+                Picker("", selection: $decision) {
+                    Text("Keep").tag(EndpointDecision.keepExisting(requestID: snapshot.requestID ?? UUID()) as EndpointDecision?)
+                    Text("Delete").tag(EndpointDecision.deleteExisting(requestID: snapshot.requestID ?? UUID()) as EndpointDecision?)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 160)
             }
-            .pickerStyle(.segmented)
-            .frame(width: 160)
+            
+            if snapshot.historyCount > 0 {
+                Label("Has \(snapshot.historyCount) history \(snapshot.historyCount == 1 ? "entry" : "entries") — these will be deleted", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.leading, 54)
+            }
         }
         .padding(.vertical, 4)
     }

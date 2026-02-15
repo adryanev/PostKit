@@ -12,6 +12,7 @@ struct EndpointSnapshot: Sendable, Identifiable {
     let bodyContentType: String?
     let authDescription: String?
     let tags: [String]
+    let historyCount: Int
 }
 
 struct EndpointChange: Sendable, Identifiable {
@@ -115,7 +116,8 @@ final class OpenAPIDiffEngine: Sendable {
             bodyType: bodyType,
             bodyContentType: endpoint.requestBody?.contentType,
             authDescription: authDescription,
-            tags: endpoint.tags
+            tags: endpoint.tags,
+            historyCount: 0
         )
     }
     
@@ -143,7 +145,8 @@ final class OpenAPIDiffEngine: Sendable {
             bodyType: request.bodyType,
             bodyContentType: nil,
             authDescription: authDescription,
-            tags: []
+            tags: [],
+            historyCount: request.history.count
         )
     }
     

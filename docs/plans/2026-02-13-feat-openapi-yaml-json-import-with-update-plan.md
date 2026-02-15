@@ -804,7 +804,7 @@ Wire everything together and handle edge cases.
 - [x] Changed endpoints show side-by-side comparison of all fields
 - [x] User can keep or replace each changed endpoint individually
 - [x] User can keep or delete each removed endpoint individually
-- [ ] Removed endpoints with history show deletion warning
+- [x] Removed endpoints with history show deletion warning
 - [x] New endpoints auto-added during update
 - [x] Tag changes move endpoints to new folders
 - [x] Untagged endpoints moved to collection root
