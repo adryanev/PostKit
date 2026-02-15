@@ -791,44 +791,44 @@ Wire everything together and handle edge cases.
 
 ### Functional Requirements
 
-- [ ] Import accepts `.json`, `.yaml`, and `.yml` files
-- [ ] YAML files parse correctly with Yams (including unquoted version numbers)
-- [ ] `$ref` parameters skipped gracefully with count shown in UI
-- [ ] Path-level and operation-level parameters merged correctly
-- [ ] User always sees "Create new" + existing collections before import
-- [ ] Creating a new collection populates: requests, folders (from tags), environments (from servers), auth config (from security schemes)
-- [ ] Path parameters `{id}` converted to `{{id}}` in URL templates
-- [ ] `openAPIPath` and `openAPIMethod` stored on all imported requests
-- [ ] `duplicated()` on imported requests produces nil for both tracking fields
-- [ ] Updating an existing collection shows diff with new/changed/removed categories
-- [ ] Changed endpoints show side-by-side comparison of all fields
-- [ ] User can keep or replace each changed endpoint individually
-- [ ] User can keep or delete each removed endpoint individually
+- [x] Import accepts `.json`, `.yaml`, and `.yml` files
+- [x] YAML files parse correctly with Yams (including unquoted version numbers)
+- [x] `$ref` parameters skipped gracefully with count shown in UI
+- [x] Path-level and operation-level parameters merged correctly
+- [x] User always sees "Create new" + existing collections before import
+- [x] Creating a new collection populates: requests, folders (from tags), environments (from servers), auth config (from security schemes)
+- [x] Path parameters `{id}` converted to `{{id}}` in URL templates
+- [x] `openAPIPath` and `openAPIMethod` stored on all imported requests
+- [x] `duplicated()` on imported requests produces nil for both tracking fields
+- [x] Updating an existing collection shows diff with new/changed/removed categories
+- [x] Changed endpoints show side-by-side comparison of all fields
+- [x] User can keep or replace each changed endpoint individually
+- [x] User can keep or delete each removed endpoint individually
 - [ ] Removed endpoints with history show deletion warning
-- [ ] New endpoints auto-added during update
-- [ ] Tag changes move endpoints to new folders
-- [ ] Untagged endpoints moved to collection root
-- [ ] Empty folders cleaned up after update
-- [ ] User-created requests (no `openAPIPath`) never affected by update
-- [ ] Keychain entries cleaned up when requests are deleted
-- [ ] Cancel and Escape work cleanly at every wizard step
-- [ ] Return key triggers Next/Import
-- [ ] Query parameters extracted (not just headers)
-- [ ] Body content type correctly mapped (json, xml, form-data, url-encoded, raw)
+- [x] New endpoints auto-added during update
+- [x] Tag changes move endpoints to new folders
+- [x] Untagged endpoints moved to collection root
+- [x] Empty folders cleaned up after update
+- [x] User-created requests (no `openAPIPath`) never affected by update
+- [x] Keychain entries cleaned up when requests are deleted
+- [x] Cancel and Escape work cleanly at every wizard step
+- [x] Return key triggers Next/Import
+- [x] Query parameters extracted (not just headers)
+- [x] Body content type correctly mapped (json, xml, form-data, url-encoded, raw)
 
 ### Non-Functional Requirements
 
-- [ ] Parser handles specs up to 500KB without UI freeze
-- [ ] Wizard sheet is responsive — all services on `@MainActor` with single `context.save()`
-- [ ] All new services are `Sendable` or `@MainActor`
-- [ ] All types in `DiffResult` are `Sendable` — no `@Model` references
-- [ ] Update operation is atomic (single `context.save()`)
-- [ ] All new types follow existing naming conventions
+- [x] Parser handles specs up to 500KB without UI freeze
+- [x] Wizard sheet is responsive — all services on `@MainActor` with single `context.save()`
+- [x] All new services are `Sendable` or `@MainActor`
+- [x] All types in `DiffResult` are `Sendable` — no `@Model` references
+- [x] Update operation is atomic (single `context.save()`)
+- [x] All new types follow existing naming conventions
 
 ### Quality Gates
 
-- [ ] 30+ new tests covering parser, diff engine, and importer
-- [ ] All existing 12 OpenAPI parser tests still pass
+- [x] 30+ new tests covering parser, diff engine, and importer
+- [x] All existing 12 OpenAPI parser tests still pass
 - [ ] Manual testing with Petstore OpenAPI spec (canonical)
 
 ## Dependencies & Prerequisites
