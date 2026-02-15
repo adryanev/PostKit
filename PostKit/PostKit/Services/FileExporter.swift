@@ -18,6 +18,8 @@ struct ExportedRequest: Codable {
     let queryParams: [ExportedKeyValuePair]
     let bodyType: String
     let bodyContent: String?
+    let openAPIPath: String?
+    let openAPIMethod: String?
 }
 
 struct ExportedEnvironment: Codable {
@@ -82,7 +84,9 @@ final class FileExporter: FileExporterProtocol {
                 headers: headers,
                 queryParams: queryParams,
                 bodyType: request.bodyType.rawValue,
-                bodyContent: request.bodyContent
+                bodyContent: request.bodyContent,
+                openAPIPath: request.openAPIPath,
+                openAPIMethod: request.openAPIMethod
             ))
         }
         
@@ -126,7 +130,13 @@ final class FileExporter: FileExporterProtocol {
         for exportedRequest in exported.requests {
             guard let method = HTTPMethod(rawValue: exportedRequest.method) else { continue }
             
-            let request = HTTPRequest(name: exportedRequest.name, method: method, url: exportedRequest.url)
+            let request = HTTPRequest(
+                name: exportedRequest.name,
+                method: method,
+                url: exportedRequest.url,
+                openAPIPath: exportedRequest.openAPIPath,
+                openAPIMethod: exportedRequest.openAPIMethod
+            )
             
             let headers = exportedRequest.headers.map {
                 KeyValuePair(key: $0.key, value: $0.value, isEnabled: $0.isEnabled)

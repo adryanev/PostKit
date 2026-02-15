@@ -15,6 +15,8 @@ final class HTTPRequest {
     var sortOrder: Int
     var createdAt: Date
     var updatedAt: Date
+    var openAPIPath: String?
+    var openAPIMethod: String?
     
     var collection: RequestCollection?
     var folder: Folder?
@@ -54,7 +56,7 @@ final class HTTPRequest {
         }
     }
     
-    init(name: String, method: HTTPMethod = .get, url: String = "") {
+    init(name: String, method: HTTPMethod = .get, url: String = "", openAPIPath: String? = nil, openAPIMethod: String? = nil) {
         self.id = UUID()
         self.name = name
         self.methodRaw = method.rawValue
@@ -63,6 +65,8 @@ final class HTTPRequest {
         self.sortOrder = 0
         self.createdAt = Date()
         self.updatedAt = Date()
+        self.openAPIPath = openAPIPath
+        self.openAPIMethod = openAPIMethod
     }
 
     func duplicated() -> HTTPRequest {
