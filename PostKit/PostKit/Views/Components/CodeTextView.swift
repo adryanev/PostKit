@@ -1,5 +1,26 @@
 import SwiftUI
 import AppKit
+
+// MARK: - Highlightr Threading Model
+//
+// Highlightr wraps Highlight.js via JavaScriptCore's JSContext for syntax highlighting.
+// The threading model is as follows:
+//
+// 1. JSContext Safety: CodeAttributedString dispatches highlighting work to a background
+//    DispatchQueue.global() but serializes JSContext access internally. The library has been
+//    widely used in production without thread safety issues.
+//
+// 2. @preconcurrency Import: This is the standard Swift pattern for importing non-Sendable
+//    Objective-C libraries. It suppresses Sendability warnings while acknowledging that the
+//    underlying library was not designed with Swift concurrency in mind.
+//
+// 3. Theme Changes: All theme mutations (via `applyThemeChange`) are invoked from the main
+//    thread via SwiftUI's `updateNSView`, which runs on the main actor. This ensures theme
+//    changes are serialized with respect to the main run loop, coordinating safely with
+//    Highlightr's internal JSContext serialization.
+//
+// Reference: https://github.com/raspu/Highlightr
+//
 @preconcurrency import Highlightr
 
 struct CodeTextView: NSViewRepresentable {
@@ -18,19 +39,16 @@ struct CodeTextView: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
         
-        let highlightr = Highlightr()
-        let textStorage: CodeAttributedString
-        if let highlightr = highlightr {
-            textStorage = CodeAttributedString(highlightr: highlightr)
-        } else {
-            textStorage = CodeAttributedString()
-        }
+        let textStorage = CodeAttributedString()
         
         let theme = colorScheme == .dark ? "xcode-dark" : "xcode"
         textStorage.highlightr.setTheme(to: theme)
         textStorage.highlightr.theme.setCodeFont(.monospacedSystemFont(ofSize: 13, weight: .regular))
         
-        if text.utf8.count <= highlightingThreshold {
+        let byteCount = text.utf8.count
+        context.coordinator.lastTextByteCount = byteCount
+        
+        if byteCount <= highlightingThreshold {
             textStorage.language = language
         }
         
@@ -88,10 +106,13 @@ struct CodeTextView: NSViewRepresentable {
         }
         
         if !isEditable {
-            if textView.string != text {
+            // Fast path: compare against coordinator's cached text instead of O(n) textView.string comparison
+            if text != context.coordinator.lastWrittenText {
                 let selectedRanges = textView.selectedRanges
                 textView.string = text
                 textView.selectedRanges = selectedRanges
+                context.coordinator.lastWrittenText = text
+                context.coordinator.lastTextByteCount = text.utf8.count
             }
         } else {
             guard !context.coordinator.isUpdatingFromSwiftUI else { return }
@@ -109,12 +130,12 @@ struct CodeTextView: NSViewRepresentable {
         
         let newTheme = colorScheme == .dark ? "xcode-dark" : "xcode"
         if context.coordinator.currentThemeName != newTheme {
-            context.coordinator.scheduleThemeChange(to: newTheme, textStorage: context.coordinator.textStorage)
+            context.coordinator.applyThemeChange(to: newTheme, textStorage: context.coordinator.textStorage)
         }
         
         if context.coordinator.currentLanguage != language {
             context.coordinator.currentLanguage = language
-            if text.utf8.count <= highlightingThreshold {
+            if context.coordinator.lastTextByteCount <= highlightingThreshold {
                 context.coordinator.textStorage?.language = language
             } else {
                 context.coordinator.textStorage?.language = nil
@@ -128,13 +149,13 @@ struct CodeTextView: NSViewRepresentable {
     
     class Coordinator: NSObject, NSTextViewDelegate {
         var parent: CodeTextView
-        unowned var textView: NSTextView!
+        weak var textView: NSTextView?
         var textStorage: CodeAttributedString?
         var isUpdatingFromSwiftUI = false
         var lastWrittenText: String = ""
+        var lastTextByteCount: Int = 0
         var currentThemeName: String = ""
         var currentLanguage: String?
-        var themeDebounceWorkItem: DispatchWorkItem?
         
         init(parent: CodeTextView) {
             self.parent = parent
@@ -146,25 +167,17 @@ struct CodeTextView: NSViewRepresentable {
             guard let textView = notification.object as? NSTextView else { return }
             
             isUpdatingFromSwiftUI = true
-            parent.text = textView.string
-            lastWrittenText = textView.string
+            let newText = textView.string
+            parent.text = newText
+            lastWrittenText = newText
+            lastTextByteCount = newText.utf8.count
             isUpdatingFromSwiftUI = false
         }
         
-        func scheduleThemeChange(to theme: String, textStorage: CodeAttributedString?) {
-            themeDebounceWorkItem?.cancel()
-            
-            let item = DispatchWorkItem { [weak self] in
-                guard let self = self else { return }
-                textStorage?.highlightr.setTheme(to: theme)
-                textStorage?.highlightr.theme.setCodeFont(
-                    .monospacedSystemFont(ofSize: 13, weight: .regular)
-                )
-                self.currentThemeName = theme
-            }
-            
-            themeDebounceWorkItem = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: item)
+        func applyThemeChange(to theme: String, textStorage: CodeAttributedString?) {
+            textStorage?.highlightr.setTheme(to: theme)
+            textStorage?.highlightr.theme.setCodeFont(.monospacedSystemFont(ofSize: 13, weight: .regular))
+            currentThemeName = theme
         }
     }
 }

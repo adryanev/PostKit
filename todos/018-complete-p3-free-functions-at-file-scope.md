@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "018"
 tags: [code-review, organization]
@@ -114,18 +114,19 @@ Call sites within `CurlHTTPClient` would change from `parseHeaders(from:)` to `S
 
 ## Acceptance Criteria
 
-- [ ] `sanitizeForCurl()`, `parseStatusMessage()`, and `parseHeaders()` are no longer free functions at file scope
-- [ ] Functions are properly namespaced under `CurlHTTPClient` or a helper type
-- [ ] All call sites are updated to use the new qualified names
-- [ ] Project builds successfully
-- [ ] All existing tests continue to pass
-- [ ] No functional behavior change
+- [x] `sanitizeForCurl()`, `parseStatusMessage()`, and `parseHeaders()` are no longer free functions at file scope
+- [x] Functions are properly namespaced under `CurlHTTPClient` or a helper type
+- [x] All call sites are updated to use the new qualified names
+- [x] Project builds successfully
+- [x] All existing tests continue to pass
+- [x] No functional behavior change
 
 ## Work Log
 
 | Date | Action | Notes |
 |------|--------|-------|
 | 2026-02-14 | Created | Initial finding from PR #2 code review |
+| 2026-02-16 | Resolved | Moved functions to private extension with `nonisolated static` methods; updated all call sites to use `Self.` prefix |
 
 ## Resources
 

@@ -6,7 +6,17 @@ final class LineNumberRulerView: NSRulerView {
     private let lineNumberFont: NSFont = .monospacedSystemFont(ofSize: 11, weight: .regular)
     
     private var lineNumberCache: [Int: NSAttributedString] = [:]
-    private let maxCachedLineNumbers = 10000
+    private var cachedLineCount: Int = 1
+    
+    private var lineNumberAttributes: [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .right
+        return [
+            .font: lineNumberFont,
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraphStyle
+        ]
+    }
     
     init(scrollView: NSScrollView, clientView: NSTextView) {
         self.clientTextView = clientView
@@ -41,21 +51,15 @@ final class LineNumberRulerView: NSRulerView {
     }
     
     private func precacheLineNumbers() {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .right
-        
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: lineNumberFont,
-            .foregroundColor: NSColor.secondaryLabelColor,
-            .paragraphStyle: paragraphStyle
-        ]
-        
-        for i in 1...min(maxCachedLineNumbers, 1000) {
-            lineNumberCache[i] = NSAttributedString(string: "\(i)", attributes: attributes)
+        for i in 1...1000 {
+            lineNumberCache[i] = NSAttributedString(string: "\(i)", attributes: lineNumberAttributes)
         }
     }
     
     @objc private func textDidChange(_ notification: Notification) {
+        if let tv = clientTextView {
+            cachedLineCount = countLines(in: tv.string as NSString)
+        }
         scheduleRedraw()
     }
     
@@ -103,15 +107,6 @@ final class LineNumberRulerView: NSRulerView {
         let charRange = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
         let text = textView.string as NSString
         
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .right
-        
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: lineNumberFont,
-            .foregroundColor: NSColor.secondaryLabelColor,
-            .paragraphStyle: paragraphStyle
-        ]
-        
         var lineNumber = 1
         var charIndex = 0
         
@@ -122,8 +117,7 @@ final class LineNumberRulerView: NSRulerView {
             charIndex += 1
         }
         
-        let totalLineCount = countLines(in: text)
-        updateRuleThickness(forLineCount: max(lineNumber, totalLineCount))
+        updateRuleThickness(forLineCount: max(lineNumber, cachedLineCount))
         
         var currentCharIndex = charRange.location
         var lastDrawnY: CGFloat = -.infinity
@@ -146,7 +140,7 @@ final class LineNumberRulerView: NSRulerView {
                 if let cached = lineNumberCache[lineNumber] {
                     lineNumberString = cached
                 } else {
-                    lineNumberString = NSAttributedString(string: "\(lineNumber)", attributes: attributes)
+                    lineNumberString = NSAttributedString(string: "\(lineNumber)", attributes: lineNumberAttributes)
                 }
                 
                 let textSize = lineNumberString.size()
@@ -181,19 +175,8 @@ final class LineNumberRulerView: NSRulerView {
     }
     
     private func updateRuleThickness(forLineCount lineCount: Int) {
-        let digitCount = "\(lineCount)".count
-        let baseThickness: CGFloat = 40
-        let extraWidthPerDigit: CGFloat = 8
-        
-        let newThickness: CGFloat
-        if lineCount > 9999 {
-            newThickness = baseThickness + CGFloat(digitCount - 4) * extraWidthPerDigit
-        } else if lineCount > 999 {
-            newThickness = baseThickness + CGFloat(digitCount - 3) * extraWidthPerDigit
-        } else {
-            newThickness = baseThickness
-        }
-        
+        let digitCount = max(3, "\(lineCount)".count)
+        let newThickness: CGFloat = 40 + CGFloat(max(0, digitCount - 3)) * 8
         if abs(ruleThickness - newThickness) > 0.5 {
             ruleThickness = newThickness
         }

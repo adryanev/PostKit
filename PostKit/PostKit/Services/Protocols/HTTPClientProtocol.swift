@@ -33,7 +33,8 @@ struct HTTPResponse: Sendable {
     }
     
     var contentType: String? {
-        headers["Content-Type"]?.components(separatedBy: ";").first?
+        let value = headers.first(where: { $0.key.lowercased() == "content-type" })?.value
+        return value?.components(separatedBy: ";").first?
             .trimmingCharacters(in: .whitespaces).lowercased()
     }
     

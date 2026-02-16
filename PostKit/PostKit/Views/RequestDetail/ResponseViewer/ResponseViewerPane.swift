@@ -118,7 +118,7 @@ struct ResponseBodyView: View {
                 .frame(maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(6)
-                .id(response.statusCode)
+                .id("\(response.statusCode)-\(response.size)-\(response.duration)")
             } else if let error = loadError {
                 Text(error)
                     .foregroundStyle(.red)
@@ -139,44 +139,52 @@ struct ResponseBodyView: View {
     private func loadBodyData() async {
         do {
             let data = try response.getBodyData()
+            let language = languageForContentType(response.contentType)
+            let raw = showRaw
+            let json = isJSON
+            let threshold = prettyPrintThreshold
+            let maxSize = maxDisplaySize
+
+            let displayString = await Task.detached(priority: .userInitiated) {
+                let actualData = data.prefix(Int(maxSize))
+                if !raw && json && data.count <= threshold {
+                    if let jsonObject = try? JSONSerialization.jsonObject(with: actualData),
+                       let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+                       let prettyString = String(data: prettyData, encoding: .utf8) {
+                        return prettyString
+                    }
+                }
+                return String(data: actualData, encoding: .utf8) ?? "<binary data>"
+            }.value
+
             bodyData = data
-            
-            detectedLanguage = languageForContentType(response.contentType)
-            
-            cachedDisplayString = computeDisplayString(for: data, showRaw: showRaw)
+            detectedLanguage = language
+            cachedDisplayString = displayString
         } catch {
             loadError = error.localizedDescription
         }
     }
-    
+
     private func updateDisplayString() {
         guard let data = bodyData else { return }
-        cachedDisplayString = computeDisplayString(for: data, showRaw: showRaw)
-    }
-    
-    private func computeDisplayString(for data: Data, showRaw: Bool) -> String {
-        let actualData = data.prefix(Int(maxDisplaySize))
-        
-        if !showRaw && isJSON && data.count <= prettyPrintThreshold {
-            if let json = try? JSONSerialization.jsonObject(with: actualData),
-               let prettyData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
-               let prettyString = String(data: prettyData, encoding: .utf8) {
-                return prettyString
-            }
-        }
-        
-        return String(data: actualData, encoding: .utf8) ?? "<binary data>"
-    }
-    
-    private func languageForContentType(_ contentType: String?) -> String? {
-        switch contentType {
-        case "application/json": return "json"
-        case "application/xml", "text/xml": return "xml"
-        case "text/html": return "html"
-        case "text/css": return "css"
-        case "application/javascript", "text/javascript": return "javascript"
-        case "application/x-yaml", "text/yaml": return "yaml"
-        default: return nil
+        let raw = showRaw
+        let json = isJSON
+        let threshold = prettyPrintThreshold
+        let maxSize = maxDisplaySize
+
+        Task { @MainActor in
+            let displayString = await Task.detached(priority: .userInitiated) {
+                let actualData = data.prefix(Int(maxSize))
+                if !raw && json && data.count <= threshold {
+                    if let jsonObject = try? JSONSerialization.jsonObject(with: actualData),
+                       let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+                       let prettyString = String(data: prettyData, encoding: .utf8) {
+                        return prettyString
+                    }
+                }
+                return String(data: actualData, encoding: .utf8) ?? "<binary data>"
+            }.value
+            cachedDisplayString = displayString
         }
     }
 }
