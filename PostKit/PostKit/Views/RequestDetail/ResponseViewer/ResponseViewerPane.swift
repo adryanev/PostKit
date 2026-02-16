@@ -44,15 +44,22 @@ struct ResponseContentView: View {
             ResponseStatusBar(response: response)
             Divider()
             
-            ScrollView {
-                switch activeTab {
-                case .body:
-                    ResponseBodyView(response: response)
-                case .headers:
+            ZStack {
+                ResponseBodyView(response: response)
+                    .opacity(activeTab == .body ? 1 : 0)
+                    .allowsHitTesting(activeTab == .body)
+                
+                ScrollView {
                     ResponseHeadersView(headers: response.headers)
-                case .timing:
+                }
+                .opacity(activeTab == .headers ? 1 : 0)
+                .allowsHitTesting(activeTab == .headers)
+                
+                ScrollView {
                     ResponseTimingView(duration: response.duration, size: response.size, timingBreakdown: response.timingBreakdown)
                 }
+                .opacity(activeTab == .timing ? 1 : 0)
+                .allowsHitTesting(activeTab == .timing)
             }
         }
     }
@@ -63,10 +70,15 @@ struct ResponseBodyView: View {
     @State private var showRaw = false
     @State private var bodyData: Data?
     @State private var loadError: String?
-    @State private var cachedJSON: Any?
-    @State private var prettyJSONString: String?
+    @State private var cachedDisplayString: String = ""
+    @State private var detectedLanguage: String?
     
-    private let maxDisplaySize: Int64 = 10_000_000 // 10MB
+    private let maxDisplaySize: Int64 = 10_000_000
+    private let prettyPrintThreshold: Int = 524_288
+    
+    private var isJSON: Bool {
+        response.contentType == "application/json"
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -97,16 +109,16 @@ struct ResponseBodyView: View {
                 .disabled(bodyData == nil)
             }
             
-            if let data = bodyData {
-                ScrollView([.horizontal, .vertical]) {
-                    Text(displayString(for: data))
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                }
+            if bodyData != nil {
+                CodeTextView(
+                    text: .constant(cachedDisplayString),
+                    language: showRaw ? nil : detectedLanguage,
+                    isEditable: false
+                )
+                .frame(maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(6)
+                .id("\(response.statusCode)-\(response.size)-\(response.duration)")
             } else if let error = loadError {
                 Text(error)
                     .foregroundStyle(.red)
@@ -114,36 +126,66 @@ struct ResponseBodyView: View {
                 ProgressView("Loading body...")
                     .frame(maxWidth: .infinity, minHeight: 200)
                     .task {
-                        do {
-                            let data = try response.getBodyData()
-                            bodyData = data
-                            // Cache JSON parse result
-                            let actualData = data.prefix(Int(maxDisplaySize))
-                            if let json = try? JSONSerialization.jsonObject(with: actualData),
-                               json is [Any] || json is [String: Any] {
-                                cachedJSON = json
-                                if let prettyData = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted),
-                                   let prettyString = String(data: prettyData, encoding: .utf8) {
-                                    prettyJSONString = prettyString
-                                }
-                            }
-                        } catch {
-                            loadError = error.localizedDescription
-                        }
+                        await loadBodyData()
                     }
             }
         }
         .padding(12)
+        .onChange(of: showRaw) { _, _ in
+            updateDisplayString()
+        }
     }
     
-    private var isJSON: Bool { cachedJSON != nil }
+    private func loadBodyData() async {
+        do {
+            let data = try response.getBodyData()
+            let language = languageForContentType(response.contentType)
+            let raw = showRaw
+            let json = isJSON
+            let threshold = prettyPrintThreshold
+            let maxSize = maxDisplaySize
 
-    private func displayString(for data: Data) -> String {
-        if !showRaw, let prettyString = prettyJSONString {
-            return prettyString
+            let displayString = await Task.detached(priority: .userInitiated) {
+                let actualData = data.prefix(Int(maxSize))
+                if !raw && json && data.count <= threshold {
+                    if let jsonObject = try? JSONSerialization.jsonObject(with: actualData),
+                       let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+                       let prettyString = String(data: prettyData, encoding: .utf8) {
+                        return prettyString
+                    }
+                }
+                return String(data: actualData, encoding: .utf8) ?? "<binary data>"
+            }.value
+
+            bodyData = data
+            detectedLanguage = language
+            cachedDisplayString = displayString
+        } catch {
+            loadError = error.localizedDescription
         }
-        let actualData = data.prefix(Int(maxDisplaySize))
-        return String(data: actualData, encoding: .utf8) ?? "<binary data>"
+    }
+
+    private func updateDisplayString() {
+        guard let data = bodyData else { return }
+        let raw = showRaw
+        let json = isJSON
+        let threshold = prettyPrintThreshold
+        let maxSize = maxDisplaySize
+
+        Task { @MainActor in
+            let displayString = await Task.detached(priority: .userInitiated) {
+                let actualData = data.prefix(Int(maxSize))
+                if !raw && json && data.count <= threshold {
+                    if let jsonObject = try? JSONSerialization.jsonObject(with: actualData),
+                       let prettyData = try? JSONSerialization.data(withJSONObject: jsonObject, options: .prettyPrinted),
+                       let prettyString = String(data: prettyData, encoding: .utf8) {
+                        return prettyString
+                    }
+                }
+                return String(data: actualData, encoding: .utf8) ?? "<binary data>"
+            }.value
+            cachedDisplayString = displayString
+        }
     }
 }
 

@@ -35,49 +35,6 @@ private final class CurlTransferContext: @unchecked Sendable {
     }
 }
 
-nonisolated func sanitizeForCurl(_ string: String) -> String {
-    string
-        .replacingOccurrences(of: "\r", with: "")
-        .replacingOccurrences(of: "\n", with: "")
-        .replacingOccurrences(of: "\0", with: "")
-}
-
-nonisolated func parseStatusMessage(from headerLines: [String], statusCode: Int) -> String {
-    guard let firstLine = headerLines.first else {
-        return HTTPURLResponse.localizedString(forStatusCode: statusCode)
-    }
-
-    guard firstLine.hasPrefix("HTTP/") else {
-        return HTTPURLResponse.localizedString(forStatusCode: statusCode)
-    }
-
-    let parts = firstLine.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-    if parts.count >= 3 {
-        return String(parts[2]).trimmingCharacters(in: .whitespaces)
-    }
-
-    return HTTPURLResponse.localizedString(forStatusCode: statusCode)
-}
-
-nonisolated func parseHeaders(from headerLines: [String]) -> [String: String] {
-    var headers: [String: String] = [:]
-
-    for line in headerLines {
-        guard !line.hasPrefix("HTTP/") else { continue }
-        guard let colonIndex = line.firstIndex(of: ":") else { continue }
-
-        let key = String(line[..<colonIndex]).trimmingCharacters(in: .whitespaces)
-        let value = String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
-
-        if headers[key] != nil {
-            headers[key] = "\(headers[key]!), \(value)"
-        } else {
-            headers[key] = value
-        }
-    }
-
-    return headers
-}
 
 let curlWriteCallback: @convention(c) (UnsafeMutablePointer<Int8>?, Int, Int, UnsafeMutableRawPointer?) -> Int = { ptr, size, nmemb, userdata in
     guard let ptr = ptr, let userdata = userdata else { return 0 }
@@ -170,7 +127,7 @@ actor CurlHTTPClient: HTTPClientProtocol {
             throw HTTPClientError.invalidURL
         }
 
-        let sanitizedURL = sanitizeForCurl(url.absoluteString)
+        let sanitizedURL = Self.sanitizeForCurl(url.absoluteString)
 
         let context = CurlTransferContext()
         activeContexts[taskID] = context
@@ -309,8 +266,8 @@ actor CurlHTTPClient: HTTPClientProtocol {
 
         if let headers = request.allHTTPHeaderFields {
             for (key, value) in headers {
-                let sanitizedKey = sanitizeForCurl(key)
-                let sanitizedValue = sanitizeForCurl(value)
+                let sanitizedKey = Self.sanitizeForCurl(key)
+                let sanitizedValue = Self.sanitizeForCurl(value)
                 let headerString = "\(sanitizedKey): \(sanitizedValue)"
                 headerString.withCString { cString in
                     headerList = curl_slist_append(headerList, cString)
@@ -346,9 +303,9 @@ actor CurlHTTPClient: HTTPClientProtocol {
         curl_easy_getinfo_long(handle, CURLINFO_RESPONSE_CODE, &statusCodeLong)
         let statusCode = statusCodeLong
 
-        let statusMessage = parseStatusMessage(from: context.headerLines, statusCode: statusCode)
+        let statusMessage = Self.parseStatusMessage(from: context.headerLines, statusCode: statusCode)
 
-        let headers = parseHeaders(from: context.headerLines)
+        let headers = Self.parseHeaders(from: context.headerLines)
 
         var totalTime: Double = 0
         var nameLookupTime: Double = 0
@@ -411,5 +368,54 @@ actor CurlHTTPClient: HTTPClientProtocol {
             let message = String(cString: curl_easy_strerror(code))
             return .networkError(NSError(domain: "CurlHTTPClient", code: Int(code.rawValue), userInfo: [NSLocalizedDescriptionKey: message]))
         }
+    }
+}
+
+// MARK: - Testable Helpers
+// These helper functions are internal for testability
+
+extension CurlHTTPClient {
+    nonisolated static func sanitizeForCurl(_ string: String) -> String {
+        string
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\0", with: "")
+    }
+
+    nonisolated static func parseStatusMessage(from headerLines: [String], statusCode: Int) -> String {
+        guard let firstLine = headerLines.first else {
+            return HTTPURLResponse.localizedString(forStatusCode: statusCode)
+        }
+
+        guard firstLine.hasPrefix("HTTP/") else {
+            return HTTPURLResponse.localizedString(forStatusCode: statusCode)
+        }
+
+        let parts = firstLine.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+        if parts.count >= 3 {
+            return String(parts[2]).trimmingCharacters(in: .whitespaces)
+        }
+
+        return HTTPURLResponse.localizedString(forStatusCode: statusCode)
+    }
+
+    nonisolated static func parseHeaders(from headerLines: [String]) -> [String: String] {
+        var headers: [String: String] = [:]
+
+        for line in headerLines {
+            guard !line.hasPrefix("HTTP/") else { continue }
+            guard let colonIndex = line.firstIndex(of: ":") else { continue }
+
+            let key = String(line[..<colonIndex]).trimmingCharacters(in: .whitespaces)
+            let value = String(line[line.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
+
+            if headers[key] != nil {
+                headers[key] = "\(headers[key]!), \(value)"
+            } else {
+                headers[key] = value
+            }
+        }
+
+        return headers
     }
 }

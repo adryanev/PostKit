@@ -151,3 +151,4 @@ credentials/
 .idea/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
+Packages/

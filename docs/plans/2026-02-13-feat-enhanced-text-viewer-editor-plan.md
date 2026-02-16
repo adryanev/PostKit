@@ -142,14 +142,14 @@ Services/
   - Tag at a known-good commit (e.g., `1.0.0-postkit`)
   - This gives reproducible builds and protection against upstream breakage
 
-- [ ] **Add Highlightr SPM dependency** to `PostKit.xcodeproj`
+- [x] **Add Highlightr SPM dependency** to `PostKit.xcodeproj`
   - Package URL: `https://github.com/adryanev/Highlightr.git` (forked)
   - Use tagged version `1.0.0-postkit`
   - Add to the main `PostKit` target only
 
 - [ ] **Add `@preconcurrency import Highlightr`** — Highlightr classes are not `@Sendable`. Add this from the start, not as a later fix.
 
-- [ ] **Add `contentType` computed property** to `HTTPResponse` (`HTTPClientProtocol.swift`):
+- [x] **Add `contentType` computed property** to `HTTPResponse` (`HTTPClientProtocol.swift`):
   ```swift
   var contentType: String? {
       headers["Content-Type"]?.components(separatedBy: ";").first?
@@ -157,7 +157,7 @@ Services/
   }
   ```
 
-- [ ] **Add `highlightrLanguage` computed property** to `BodyType` enum (`BodyType.swift`):
+- [x] **Add `highlightrLanguage` computed property** to `BodyType` enum (`BodyType.swift`):
   ```swift
   var highlightrLanguage: String? {
       switch self {
@@ -171,7 +171,7 @@ Services/
   }
   ```
 
-- [ ] **Create `Views/Components/CodeTextView.swift`**
+- [x] **Create `Views/Components/CodeTextView.swift`**
 
   **API (3 parameters only):**
   ```swift
@@ -228,7 +228,7 @@ Services/
   - If `text.utf8.count > 262_144`, set `textStorage.language = nil` (plain monospaced, no highlighting)
   - This keeps initial highlight time under 150ms on M-series Macs
 
-- [ ] **Create `Views/Components/LineNumberRulerView.swift`**
+- [x] **Create `Views/Components/LineNumberRulerView.swift`**
   - Subclass `NSRulerView`
   - Initialize with `clientView` set to the NSTextView
   - Observe `NSText.didChangeNotification` and `NSView.frameDidChangeNotification`
@@ -251,7 +251,7 @@ Services/
 
 **Tasks:**
 
-- [ ] **Restructure `ResponseContentView`** to eliminate nested ScrollView conflict:
+- [x] **Restructure `ResponseContentView`** to eliminate nested ScrollView conflict:
 
   **Problem:** `ResponseContentView` wraps all tabs (body, headers, timing) in a single `ScrollView`. But `CodeTextView` has its own `NSScrollView` internally. A SwiftUI ScrollView containing an NSScrollView causes conflicting scroll gestures and broken inertia.
 
@@ -280,7 +280,7 @@ Services/
   }
   ```
 
-- [ ] **Cache `displayString` and `isJSON` in ResponseBodyView** — currently, `displayString(for:)` calls `JSONSerialization` on every SwiftUI body evaluation. This is a 50-100ms parse for a 5MB response firing dozens of times.
+- [x] **Cache `displayString` and `isJSON` in ResponseBodyView** — currently, `displayString(for:)` calls `JSONSerialization` on every SwiftUI body evaluation. This is a 50-100ms parse for a 5MB response firing dozens of times.
 
   **Solution:**
   ```swift
@@ -302,21 +302,21 @@ Services/
   }
   ```
 
-- [ ] **Add pretty-printing size limit of 512KB** — pretty-printing a 5MB JSON response consumes 55-65MB peak memory. Skip pretty-printing above 512KB, display raw JSON instead.
+- [x] **Add pretty-printing size limit of 512KB** — pretty-printing a 5MB JSON response consumes 55-65MB peak memory. Skip pretty-printing above 512KB, display raw JSON instead.
 
-- [ ] **Replace ResponseBodyView** (`ResponseViewerPane.swift`):
+- [x] **Replace ResponseBodyView** (`ResponseViewerPane.swift`):
   - Remove the `ScrollView([.horizontal, .vertical]) { Text(...) }` block
   - Replace with `CodeTextView(text: .constant(cachedDisplayString), language: detectedLanguage, isEditable: false)`
   - When "Raw" toggle is on, set language to `nil` and use raw body string
   - Keep the existing "Copy" button
   - Use `.id(response.hashValue)` to force recreation when response changes entirely (avoids re-highlight-mid-highlight race)
 
-- [ ] **Replace BodyEditor** (`RequestEditorPane.swift:163-169`):
+- [x] **Replace BodyEditor** (`RequestEditorPane.swift:163-169`):
   - Remove the `TextEditor(text: Binding(...))` block
   - Replace with `CodeTextView(text: bodyContentBinding, language: request.bodyType.highlightrLanguage, isEditable: true)`
   - Maintain the same `nil` ↔ empty string binding wrapper for `bodyContent`
 
-- [ ] **Replace CurlImportSheet** (`CurlImportSheet.swift:21-24`):
+- [x] **Replace CurlImportSheet** (`CurlImportSheet.swift:21-24`):
   - Remove `TextEditor(text: $curlCommand)`
   - Replace with `CodeTextView(text: $curlCommand, language: "bash", isEditable: true)`
   - **Debounce curl parsing** — add 150ms debounce to `.onChange(of: curlCommand)` to reduce @State churn while CodeAttributedString is highlighting:
@@ -329,7 +329,7 @@ Services/
     }
     ```
 
-- [ ] **Content-type → language mapping** (private function in ResponseBodyView):
+- [x] **Content-type → language mapping** (private function in ResponseBodyView):
   ```swift
   private func languageForContentType(_ contentType: String?) -> String? {
       switch contentType {
@@ -376,16 +376,16 @@ Services/
 
 - [ ] **Find bar:** Verify Cmd+F opens find bar. Verify focus returns to text view when find bar closes (FindBarAwareScrollView).
 
-- [ ] **Amend ADR-003** (Zero External Dependencies):
+- [x] **Amend ADR-003** (Zero External Dependencies):
   - Document Highlightr as a justified exception
   - Note: forked and pinned to tagged version for reproducibility
   - Note: JSC adds ~2-4MB resident memory, ~50-100ms cold-start latency
 
-- [ ] **Amend ADR-001** (SwiftUI over UIKit/AppKit):
+- [x] **Amend ADR-001** (SwiftUI over UIKit/AppKit):
   - Document `NSViewRepresentable` as an accepted bridging pattern for text editing
   - Note: required because SwiftUI TextEditor does not support attributed text
 
-- [ ] **Update developer guide** (`docs/sop/developer-guide.md`):
+- [x] **Update developer guide** (`docs/sop/developer-guide.md`):
   - Highlightr as a dependency (forked)
   - `CodeTextView` as the standard text display component
   - NSViewRepresentable pattern for AppKit bridging

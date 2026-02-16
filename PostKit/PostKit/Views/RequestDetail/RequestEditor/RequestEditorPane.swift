@@ -160,11 +160,14 @@ struct BodyEditor: View {
             .frame(width: 150)
             
             if bodyType != .none {
-                TextEditor(text: Binding(
-                    get: { bodyContent ?? "" },
-                    set: { bodyContent = $0.isEmpty ? nil : $0 }
-                ))
-                .font(.system(.body, design: .monospaced))
+                CodeTextView(
+                    text: Binding(
+                        get: { bodyContent ?? "" },
+                        set: { bodyContent = $0.isEmpty ? nil : $0 }
+                    ),
+                    language: bodyType.highlightrLanguage,
+                    isEditable: true
+                )
                 .frame(maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
                 .cornerRadius(6)

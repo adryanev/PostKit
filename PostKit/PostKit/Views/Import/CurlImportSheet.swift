@@ -11,6 +11,7 @@ struct CurlImportSheet: View {
     @State private var curlCommand = ""
     @State private var parseError: String?
     @State private var parsedPreview: ParsedRequest?
+    @State private var curlParseWorkItem: DispatchWorkItem?
     
     @Injected(\.curlParser) private var parser
     
@@ -19,13 +20,19 @@ struct CurlImportSheet: View {
             Text("Import cURL Command")
                 .font(.headline)
             
-            TextEditor(text: $curlCommand)
-                .font(.system(.body, design: .monospaced))
-                .frame(height: 150)
-                .border(Color.secondary.opacity(0.3))
-                .onChange(of: curlCommand) { _, _ in
-                    parseCurlCommand()
-                }
+            CodeTextView(
+                text: $curlCommand,
+                language: "bash",
+                isEditable: true
+            )
+            .frame(height: 150)
+            .border(Color.secondary.opacity(0.3))
+            .onChange(of: curlCommand) { _, _ in
+                curlParseWorkItem?.cancel()
+                let item = DispatchWorkItem { parseCurlCommand() }
+                curlParseWorkItem = item
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: item)
+            }
             
             if let error = parseError {
                 Label(error, systemImage: "exclamationmark.triangle")

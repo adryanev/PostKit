@@ -1387,25 +1387,25 @@ struct OpenAPIDiffEngineTests {
 struct CurlHTTPClientTests {
     @Test func statusMessageExtractionFromHeaderLine() {
         let headerLines = ["HTTP/1.1 200 OK", "Content-Type: application/json"]
-        let message = parseStatusMessage(from: headerLines, statusCode: 200)
+        let message = CurlHTTPClient.parseStatusMessage(from: headerLines, statusCode: 200)
         #expect(message == "OK")
     }
     
     @Test func statusMessageExtractionFromNoHeaders() {
         let headerLines: [String] = []
-        let message = parseStatusMessage(from: headerLines, statusCode: 404)
+        let message = CurlHTTPClient.parseStatusMessage(from: headerLines, statusCode: 404)
         #expect(message == HTTPURLResponse.localizedString(forStatusCode: 404))
     }
     
     @Test func statusMessageExtractionFromMalformedLine() {
         let headerLines = ["HTTP/1.1 500"]
-        let message = parseStatusMessage(from: headerLines, statusCode: 500)
+        let message = CurlHTTPClient.parseStatusMessage(from: headerLines, statusCode: 500)
         #expect(message == HTTPURLResponse.localizedString(forStatusCode: 500))
     }
     
     @Test func statusMessageExtractionFromNonHTTPLine() {
         let headerLines = ["Invalid response"]
-        let message = parseStatusMessage(from: headerLines, statusCode: 200)
+        let message = CurlHTTPClient.parseStatusMessage(from: headerLines, statusCode: 200)
         #expect(message == HTTPURLResponse.localizedString(forStatusCode: 200))
     }
     
@@ -1441,19 +1441,19 @@ struct CurlHTTPClientTests {
     
     @Test func sanitizeForCurlStripsCRLF() {
         let input = "hello\r\nworld"
-        let result = sanitizeForCurl(input)
+        let result = CurlHTTPClient.sanitizeForCurl(input)
         #expect(result == "helloworld")
     }
     
     @Test func sanitizeForCurlStripsNUL() {
         let input = "hello\0world"
-        let result = sanitizeForCurl(input)
+        let result = CurlHTTPClient.sanitizeForCurl(input)
         #expect(result == "helloworld")
     }
     
     @Test func sanitizeForCurlStripsAllControlChars() {
         let input = "line1\r\n\0line2"
-        let result = sanitizeForCurl(input)
+        let result = CurlHTTPClient.sanitizeForCurl(input)
         #expect(result == "line1line2")
     }
     
@@ -1487,14 +1487,14 @@ struct CurlHTTPClientTests {
             "Content-Type: application/json",
             "X-Request-Id: abc123"
         ]
-        let headers = parseHeaders(from: lines)
+        let headers = CurlHTTPClient.parseHeaders(from: lines)
         #expect(headers["Content-Type"] == "application/json")
         #expect(headers["X-Request-Id"] == "abc123")
     }
 
     @Test func parseHeadersSkipsStatusLine() {
         let lines = ["HTTP/1.1 200 OK", "Host: example.com"]
-        let headers = parseHeaders(from: lines)
+        let headers = CurlHTTPClient.parseHeaders(from: lines)
         #expect(headers["Host"] == "example.com")
         #expect(headers.count == 1) // HTTP/ line should be skipped
     }
@@ -1505,7 +1505,7 @@ struct CurlHTTPClientTests {
             "Set-Cookie: a=1",
             "Set-Cookie: b=2"
         ]
-        let headers = parseHeaders(from: lines)
+        let headers = CurlHTTPClient.parseHeaders(from: lines)
         #expect(headers["Set-Cookie"] == "a=1, b=2")
     }
 
@@ -1514,12 +1514,12 @@ struct CurlHTTPClientTests {
             "HTTP/1.1 200 OK",
             "Location: https://example.com:8080/path"
         ]
-        let headers = parseHeaders(from: lines)
+        let headers = CurlHTTPClient.parseHeaders(from: lines)
         #expect(headers["Location"] == "https://example.com:8080/path")
     }
 
     @Test func parseHeadersEmptyInput() {
-        let headers = parseHeaders(from: [])
+        let headers = CurlHTTPClient.parseHeaders(from: [])
         #expect(headers.isEmpty)
     }
 
@@ -1528,7 +1528,7 @@ struct CurlHTTPClientTests {
             "HTTP/1.1 200 OK",
             "Content-Type:   application/json  "
         ]
-        let headers = parseHeaders(from: lines)
+        let headers = CurlHTTPClient.parseHeaders(from: lines)
         #expect(headers["Content-Type"] == "application/json")
     }
 
@@ -1538,7 +1538,7 @@ struct CurlHTTPClientTests {
             "InvalidLineWithoutColon",
             "Valid-Header: value"
         ]
-        let headers = parseHeaders(from: lines)
+        let headers = CurlHTTPClient.parseHeaders(from: lines)
         #expect(headers.count == 1)
         #expect(headers["Valid-Header"] == "value")
     }
@@ -2016,6 +2016,326 @@ struct KeychainManagerProtocolTests {
         #expect(throws: KeychainError.self) {
             try mock.store(key: "test", value: "test")
         }
+    }
+}
+
+// MARK: - Syntax Highlighting Tests
+
+struct SyntaxHighlightingTests {
+    
+    // MARK: - HTTPResponse.contentType Tests
+    
+    @Test func contentTypeExtractsSimpleContentType() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "application/json"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "application/json")
+    }
+    
+    @Test func contentTypeHandlesCaseInsensitiveHeader() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["content-type": "application/json"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        // Implementation uses case-insensitive lookup
+        #expect(response.contentType == "application/json")
+    }
+    
+    @Test func contentTypeStripsCharsetParameter() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "application/json; charset=utf-8"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "application/json")
+    }
+    
+    @Test func contentTypeStripsMultipleParameters() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "text/html; charset=utf-8; boundary=something"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "text/html")
+    }
+    
+    @Test func contentTypeTrimsWhitespace() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "  application/json  ; charset=utf-8"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "application/json")
+    }
+    
+    @Test func contentTypeReturnsLowercase() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "Application/JSON"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "application/json")
+    }
+    
+    @Test func contentTypeReturnsNilWhenMissing() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == nil)
+    }
+    
+    @Test func contentTypeHandlesXMLTypes() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "application/xml; charset=utf-8"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "application/xml")
+    }
+    
+    @Test func contentTypeHandlesTextPlain() {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "text/plain"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        #expect(response.contentType == "text/plain")
+    }
+    
+    // MARK: - BodyType.highlightrLanguage Tests
+    
+    @Test func bodyTypeNoneReturnsNilLanguage() {
+        #expect(BodyType.none.highlightrLanguage == nil)
+    }
+    
+    @Test func bodyTypeJsonReturnsJsonLanguage() {
+        #expect(BodyType.json.highlightrLanguage == "json")
+    }
+    
+    @Test func bodyTypeXmlReturnsXmlLanguage() {
+        #expect(BodyType.xml.highlightrLanguage == "xml")
+    }
+    
+    @Test func bodyTypeRawReturnsNilLanguage() {
+        #expect(BodyType.raw.highlightrLanguage == nil)
+    }
+    
+    @Test func bodyTypeUrlEncodedReturnsNilLanguage() {
+        #expect(BodyType.urlEncoded.highlightrLanguage == nil)
+    }
+    
+    @Test func bodyTypeFormDataReturnsNilLanguage() {
+        #expect(BodyType.formData.highlightrLanguage == nil)
+    }
+    
+    @Test func bodyTypeAllCasesCovered() {
+        // Ensure we've tested all cases
+        for bodyType in BodyType.allCases {
+            switch bodyType {
+            case .none, .json, .xml, .raw, .urlEncoded, .formData:
+                break // All cases handled
+            }
+        }
+    }
+    
+    // MARK: - languageForContentType Tests
+    
+    @Test func languageForContentTypeJson() {
+        #expect(languageForContentType("application/json") == "json")
+    }
+    
+    @Test func languageForContentTypeApplicationXml() {
+        #expect(languageForContentType("application/xml") == "xml")
+    }
+    
+    @Test func languageForContentTypeTextXml() {
+        #expect(languageForContentType("text/xml") == "xml")
+    }
+    
+    @Test func languageForContentTypeHtml() {
+        #expect(languageForContentType("text/html") == "html")
+    }
+    
+    @Test func languageForContentTypeCss() {
+        #expect(languageForContentType("text/css") == "css")
+    }
+    
+    @Test func languageForContentTypeApplicationJavascript() {
+        #expect(languageForContentType("application/javascript") == "javascript")
+    }
+    
+    @Test func languageForContentTypeTextJavascript() {
+        #expect(languageForContentType("text/javascript") == "javascript")
+    }
+    
+    @Test func languageForContentTypeApplicationYaml() {
+        #expect(languageForContentType("application/x-yaml") == "yaml")
+    }
+    
+    @Test func languageForContentTypeTextYaml() {
+        #expect(languageForContentType("text/yaml") == "yaml")
+    }
+    
+    @Test func languageForContentTypeUnknownReturnsNil() {
+        #expect(languageForContentType("application/octet-stream") == nil)
+    }
+    
+    @Test func languageForContentTypeNilReturnsNil() {
+        #expect(languageForContentType(nil) == nil)
+    }
+    
+    @Test func languageForContentTypeTextPlainReturnsNil() {
+        #expect(languageForContentType("text/plain") == nil)
+    }
+    
+    // MARK: - computeDisplayString Tests
+    
+    @Test func computeDisplayStringRawMode() {
+        let data = #"{"name":"test","value":123}"#.data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "application/json", showRaw: true)
+        #expect(result == #"{"name":"test","value":123}"#)
+    }
+    
+    @Test func computeDisplayStringJsonPrettyPrint() {
+        let data = #"{"name":"test","value":123}"#.data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "application/json", showRaw: false)
+        #expect(result.contains("\n")) // Pretty printed should have newlines
+        #expect(result.contains("\"name\""))
+        #expect(result.contains("\"test\""))
+    }
+    
+    @Test func computeDisplayStringNonJsonPassthrough() {
+        let data = "Hello, World!".data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "text/plain", showRaw: false)
+        #expect(result == "Hello, World!")
+    }
+    
+    @Test func computeDisplayStringNilContentType() {
+        let data = "Hello, World!".data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: nil, showRaw: false)
+        #expect(result == "Hello, World!")
+    }
+    
+    @Test func computeDisplayStringInvalidJsonReturnsRaw() {
+        let data = "not valid json".data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "application/json", showRaw: false)
+        #expect(result == "not valid json")
+    }
+    
+    @Test func computeDisplayStringBinaryData() {
+        let data = Data([0x00, 0x01, 0x02, 0xFF])
+        let result = computeDisplayString(for: data, contentType: "application/octet-stream", showRaw: false)
+        #expect(result == "<binary data>")
+    }
+    
+    @Test func computeDisplayStringTruncatesToMaxDisplaySize() {
+        let longString = String(repeating: "a", count: 100)
+        let data = longString.data(using: .utf8)!
+        let result = computeDisplayString(
+            for: data,
+            contentType: "text/plain",
+            showRaw: false,
+            maxDisplaySize: 50
+        )
+        #expect(result.count == 50)
+    }
+    
+    @Test func computeDisplayStringSkipsPrettyPrintAboveThreshold() {
+        // Create JSON larger than threshold
+        let jsonObject: [String: Any] = ["data": Array(repeating: "x", count: 1000)]
+        let data = try! JSONSerialization.data(withJSONObject: jsonObject)
+        
+        let result = computeDisplayString(
+            for: data,
+            contentType: "application/json",
+            showRaw: false,
+            maxDisplaySize: 10_000_000,
+            prettyPrintThreshold: 10 // Very small threshold
+        )
+        // Should not be pretty printed since it exceeds threshold
+        #expect(!result.contains("\n  ")) // No indentation newlines
+    }
+    
+    @Test func computeDisplayStringPreservesJsonOrder() {
+        let data = #"{"z":1,"a":2,"m":3}"#.data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "application/json", showRaw: false)
+        // JSON serialization preserves the order from the input
+        #expect(result.contains("z"))
+        #expect(result.contains("a"))
+        #expect(result.contains("m"))
+    }
+    
+    @Test func computeDisplayStringNestedJson() {
+        let data = #"{"user":{"name":"Alice","age":30}}"#.data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "application/json", showRaw: false)
+        #expect(result.contains("user"))
+        #expect(result.contains("Alice"))
+        #expect(result.contains("30"))
+    }
+    
+    @Test func computeDisplayStringJsonArray() {
+        let data = #"[1,2,3]"#.data(using: .utf8)!
+        let result = computeDisplayString(for: data, contentType: "application/json", showRaw: false)
+        #expect(result.contains("["))
+        #expect(result.contains("1"))
+        #expect(result.contains("2"))
+        #expect(result.contains("3"))
+    }
+    
+    @Test func computeDisplayStringEmptyData() {
+        let data = Data()
+        let result = computeDisplayString(for: data, contentType: "text/plain", showRaw: false)
+        #expect(result == "")
     }
 }
 

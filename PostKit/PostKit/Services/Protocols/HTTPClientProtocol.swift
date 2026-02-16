@@ -32,6 +32,12 @@ struct HTTPResponse: Sendable {
         bodyFileURL != nil
     }
     
+    var contentType: String? {
+        let value = headers.first(where: { $0.key.lowercased() == "content-type" })?.value
+        return value?.components(separatedBy: ";").first?
+            .trimmingCharacters(in: .whitespaces).lowercased()
+    }
+    
     func getBodyData() throws -> Data {
         if let body = body {
             return body
