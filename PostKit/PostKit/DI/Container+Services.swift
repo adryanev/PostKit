@@ -24,4 +24,8 @@ extension Container {
         self { @MainActor in FileExporter() }
             .scope(.singleton)
     }
+    
+    nonisolated var scriptEngine: Factory<ScriptEngineProtocol> {
+        self { JavaScriptEngine() }
+    }
 }

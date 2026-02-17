@@ -15,6 +15,7 @@ final class RequestViewModel {
     var isSending = false
     var error: Error?
     var activeTab: ResponseTab = .body
+    var consoleOutput: [String] = []
     private(set) var currentTaskID: UUID?
     @ObservationIgnored private(set) var currentTask: Task<Void, Never>?
 
@@ -27,6 +28,7 @@ final class RequestViewModel {
     // causing infinite re-render loops or compilation errors.
     @ObservationIgnored @Injected(\.httpClient) private var httpClient
     @ObservationIgnored @Injected(\.variableInterpolator) private var interpolator
+    @ObservationIgnored @Injected(\.scriptEngine) private var scriptEngine
 
     // MARK: - History Cleanup
 
@@ -53,15 +55,64 @@ final class RequestViewModel {
         isSending = true
         error = nil
         response = nil
+        consoleOutput = []
         let taskID = UUID()
         currentTaskID = taskID
 
         currentTask = Task { @MainActor in
             do {
-                let urlRequest = try buildURLRequest(for: request)
-                let httpResponse = try await httpClient.execute(urlRequest, taskID: taskID)
+                var variables = self.getActiveEnvironmentVariables()
+                var modifiedRequest = request
+                
+                // Execute pre-request script
+                if let preScript = request.preRequestScript, !preScript.isEmpty {
+                    let scriptRequest = ScriptRequest(
+                        method: request.method.rawValue,
+                        url: request.urlTemplate,
+                        headers: self.headersDict(for: request),
+                        body: request.bodyContent
+                    )
+                    let preResult = try await self.scriptEngine.executePreRequest(
+                        script: preScript,
+                        request: scriptRequest,
+                        environment: variables
+                    )
+                    self.consoleOutput.append(contentsOf: preResult.consoleOutput)
+                    variables.merge(preResult.environmentChanges) { _, new in new }
+                    
+                    // Apply modifications
+                    if let modifiedURL = preResult.modifiedURL {
+                        modifiedRequest.urlTemplate = modifiedURL
+                    }
+                    if let modifiedBody = preResult.modifiedBody {
+                        modifiedRequest.bodyContent = modifiedBody
+                    }
+                }
+                
+                let urlRequest = try self.buildURLRequest(for: modifiedRequest, with: variables)
+                let httpResponse = try await self.httpClient.execute(urlRequest, taskID: taskID)
 
                 guard taskID == self.currentTaskID else { return }
+                
+                // Execute post-request script
+                if let postScript = request.postRequestScript, !postScript.isEmpty {
+                    let bodyString: String? = {
+                        guard let body = httpResponse.body else { return nil }
+                        return String(data: body, encoding: .utf8)
+                    }()
+                    let scriptResponse = ScriptResponse(
+                        statusCode: httpResponse.statusCode,
+                        headers: httpResponse.headers,
+                        body: bodyString,
+                        duration: httpResponse.duration
+                    )
+                    let postResult = try await self.scriptEngine.executePostRequest(
+                        script: postScript,
+                        response: scriptResponse,
+                        environment: variables
+                    )
+                    self.consoleOutput.append(contentsOf: postResult.consoleOutput)
+                }
 
                 self.response = httpResponse
                 self.isSending = false
@@ -73,6 +124,15 @@ final class RequestViewModel {
                 self.isSending = false
             }
         }
+    }
+    
+    private func headersDict(for request: HTTPRequest) -> [String: String] {
+        let headers = [KeyValuePair].decode(from: request.headersData)
+        var dict: [String: String] = [:]
+        for header in headers where header.isEnabled {
+            dict[header.key] = header.value
+        }
+        return dict
     }
 
     func cancelRequest() {
@@ -86,12 +146,12 @@ final class RequestViewModel {
 
     // MARK: - Request Building
 
-    func buildURLRequest(for request: HTTPRequest) throws -> URLRequest {
-        let variables = getActiveEnvironmentVariables()
+    func buildURLRequest(for request: HTTPRequest, with variables: [String: String]? = nil) throws -> URLRequest {
+        let vars = variables ?? getActiveEnvironmentVariables()
 
         let interpolatedURL = try interpolator.interpolate(
             request.urlTemplate,
-            with: variables
+            with: vars
         )
 
         var urlComponents = URLComponents(string: interpolatedURL)
@@ -100,8 +160,8 @@ final class RequestViewModel {
         var queryItems = urlComponents?.queryItems ?? []
 
         for param in queryParams where param.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(param.key, with: variables)
-            let interpolatedValue = try interpolator.interpolate(param.value, with: variables)
+            let interpolatedKey = try interpolator.interpolate(param.key, with: vars)
+            let interpolatedValue = try interpolator.interpolate(param.value, with: vars)
             queryItems.append(URLQueryItem(name: interpolatedKey, value: interpolatedValue))
         }
 
@@ -127,13 +187,13 @@ final class RequestViewModel {
 
         let headers = [KeyValuePair].decode(from: request.headersData)
         for header in headers where header.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(header.key, with: variables)
-            let interpolatedValue = try interpolator.interpolate(header.value, with: variables)
+            let interpolatedKey = try interpolator.interpolate(header.key, with: vars)
+            let interpolatedValue = try interpolator.interpolate(header.value, with: vars)
             urlRequest.setValue(interpolatedValue, forHTTPHeaderField: interpolatedKey)
         }
 
         if let bodyContent = request.bodyContent, !bodyContent.isEmpty {
-            let interpolatedBody = try interpolator.interpolate(bodyContent, with: variables)
+            let interpolatedBody = try interpolator.interpolate(bodyContent, with: vars)
             switch request.bodyType {
             case .json, .raw, .xml:
                 urlRequest.httpBody = interpolatedBody.data(using: .utf8)
@@ -242,5 +302,6 @@ enum ResponseTab: String, CaseIterable {
     case body = "Body"
     case headers = "Headers"
     case timing = "Timing"
+    case console = "Console"
     case examples = "Examples"
 }

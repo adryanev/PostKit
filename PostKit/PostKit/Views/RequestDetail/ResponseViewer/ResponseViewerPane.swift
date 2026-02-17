@@ -16,6 +16,7 @@ struct ResponseViewerPane: View {
     @Binding var activeTab: ResponseTab
     let isLoading: Bool
     let request: HTTPRequest?
+    let consoleOutput: [String]
     
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,8 @@ struct ResponseViewerPane: View {
                 ResponseContentView(
                     response: response,
                     activeTab: $activeTab,
-                    request: request
+                    request: request,
+                    consoleOutput: consoleOutput
                 )
             } else {
                 EmptyResponseView()
@@ -42,6 +44,7 @@ struct ResponseContentView: View {
     let response: HTTPResponse
     @Binding var activeTab: ResponseTab
     let request: HTTPRequest?
+    let consoleOutput: [String]
     @Environment(\.modelContext) private var modelContext
     @State private var showingSaveExample = false
     @State private var exampleName = ""
@@ -71,6 +74,12 @@ struct ResponseContentView: View {
                 }
                 .opacity(activeTab == .timing ? 1 : 0)
                 .allowsHitTesting(activeTab == .timing)
+                
+                ScrollView {
+                    ConsoleTabView(output: consoleOutput)
+                }
+                .opacity(activeTab == .console ? 1 : 0)
+                .allowsHitTesting(activeTab == .console)
                 
                 ScrollView {
                     ExamplesTabView(request: request)
@@ -610,6 +619,58 @@ struct ExampleDetailView: View {
     }
 }
 
+struct ConsoleTabView: View {
+    let output: [String]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Console Output")
+                    .font(.headline)
+                Spacer()
+                if !output.isEmpty {
+                    Button("Clear") {
+                        NSPasteboard.general.clearContents()
+                        let text = output.joined(separator: "\n")
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            
+            if output.isEmpty {
+                ContentUnavailableView(
+                    "No Console Output",
+                    systemImage: "terminal",
+                    description: Text("Console output from pre/post-request scripts will appear here")
+                )
+                .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(output.enumerated()), id: \.offset) { index, line in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("\(index + 1)")
+                                    .foregroundStyle(.secondary)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .frame(width: 24, alignment: .trailing)
+                                Text(line)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                }
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(6)
+            }
+        }
+        .padding(12)
+    }
+}
+
 #Preview("With Response") {
     let sampleResponse = HTTPResponse(
         statusCode: 200,
@@ -634,7 +695,8 @@ struct ExampleDetailView: View {
         error: nil,
         activeTab: .constant(.body),
         isLoading: false,
-        request: nil
+        request: nil,
+        consoleOutput: ["Script executed successfully", "Response time: 234ms"]
     )
     .frame(width: 400, height: 500)
 }

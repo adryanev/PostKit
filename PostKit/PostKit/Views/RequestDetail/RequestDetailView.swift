@@ -27,7 +27,8 @@ struct RequestDetailView: View {
                     error: viewModel?.error,
                     activeTab: activeTabBinding,
                     isLoading: viewModel?.isSending ?? false,
-                    request: request
+                    request: request,
+                    consoleOutput: viewModel?.consoleOutput ?? []
                 )
                 .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
             }
