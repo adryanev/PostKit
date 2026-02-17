@@ -1202,13 +1202,13 @@ struct SpotlightIndexerTests {
 
 ### Non-Functional Requirements
 
-- [ ] All new services conform to `Sendable`
-- [ ] All `@Injected` properties in `@Observable` classes marked `@ObservationIgnored`
-- [ ] All new models registered in `PostKitApp.swift` schema array
-- [ ] All new services registered in `DI/Container+*.swift`
+- [x] All new services conform to `Sendable`
+- [x] All `@Injected` properties in `@Observable` classes marked `@ObservationIgnored`
+- [x] All new models registered in `PostKitApp.swift` schema array
+- [x] All new services registered in `DI/Container+*.swift`
 - [ ] Import of 100 requests completes in <5 seconds
-- [ ] Script execution times out after 5 seconds
-- [ ] No network or filesystem access from script sandbox
+- [x] Script execution times out after 5 seconds
+- [x] No network or filesystem access from script sandbox
 
 ### Quality Gates
 
