@@ -49,20 +49,20 @@ All relationships use `.cascade` delete rules:
 
 ```
 RequestCollection
-├── folders: [Folder] → requests: [HTTPRequest] → history: [HistoryEntry]
-├── requests: [HTTPRequest] → history: [HistoryEntry]
+├── folders: [Folder] → requests: [HTTPRequest] → history: [HistoryEntry], examples: [ResponseExample]
+├── requests: [HTTPRequest] → history: [HistoryEntry], examples: [ResponseExample]
 └── environments: [APIEnvironment] → variables: [Variable]
 ```
 
-All 6 model types must be registered in `PostKitApp.swift` schema array.
+All 7 model types must be registered in `PostKitApp.swift` schema array.
 
 ### Dependency Injection
 
 PostKit uses Factory 2.5.x as the unified DI container (`import FactoryKit`). All services are registered in `DI/Container+*.swift` extensions and resolved via `@Injected` property wrapper.
 
 **Container Organization:**
-- `DI/Container+Services.swift` — httpClient, keychainManager, fileExporter
-- `DI/Container+Parsers.swift` — curlParser, openAPIParser, variableInterpolator
+- `DI/Container+Services.swift` — httpClient, keychainManager, fileExporter, scriptEngine, spotlightIndexer
+- `DI/Container+Parsers.swift` — curlParser, openAPIParser, variableInterpolator, postmanParser
 
 **Mandatory Pattern for @Observable Classes:**
 
@@ -142,13 +142,13 @@ All source is under `PostKit/PostKit/` (the Xcode target root):
 
 - `DI/` — Factory container extensions (`Container+Services.swift`, `Container+Parsers.swift`)
 - `Models/` — SwiftData `@Model` classes + `Enums/` for `HTTPMethod`, `BodyType`, `AuthType`
-- `ViewModels/` — Single `RequestViewModel.swift` (execution, history, auth, interpolation)
-- `Views/` — Grouped by feature: `Sidebar/`, `RequestList/`, `RequestDetail/`, `Environment/`, `Import/`
-- `Services/` — `HTTPClient`, `CurlParser`, `OpenAPIParser`, `FileExporter`, `VariableInterpolator`, `KeychainManager`, `Protocols/`
+- `ViewModels/` — Single `RequestViewModel.swift` (execution, history, auth, interpolation, scripts)
+- `Views/` — Grouped by feature: `Sidebar/`, `RequestList/`, `RequestDetail/`, `Environment/`, `Import/`, `MenuBar/`
+- `Services/` — `HTTPClient`, `CurlParser`, `OpenAPIParser`, `PostmanParser`, `PostmanImporter`, `FileExporter`, `VariableInterpolator`, `KeychainManager`, `JavaScriptEngine`, `SpotlightIndexer`, `Protocols/`
 - `Utilities/` — `KeyValuePair`, `FocusedValues`
 
 Tests are in `PostKit/PostKitTests/`:
-- `PostKitTests.swift` — Test suites grouped by struct (`CurlParserTests`, `VariableInterpolatorTests`, `KeyValuePairTests`, `AuthConfigTests`, `OpenAPIParserTests`, `RequestViewModelTests`)
+- `PostKitTests.swift` — Test suites grouped by struct (`CurlParserTests`, `VariableInterpolatorTests`, `KeyValuePairTests`, `AuthConfigTests`, `OpenAPIParserTests`, `RequestViewModelTests`, `PostmanParserTests`, `JavaScriptEngineTests`)
 - `Mocks/` — Mock implementations (`MockHTTPClient`, `MockKeychainManager`) for Factory-based testing
 
 ## Documentation

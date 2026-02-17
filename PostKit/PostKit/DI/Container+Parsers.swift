@@ -9,6 +9,10 @@ extension Container {
         self { OpenAPIParser() }
     }
 
+    nonisolated var postmanParser: Factory<PostmanParserProtocol> {
+        self { PostmanParser() }
+    }
+
     nonisolated var variableInterpolator: Factory<VariableInterpolatorProtocol> {
         self { VariableInterpolator() }.singleton
     }

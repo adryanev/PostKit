@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 private extension Int64 {
     var formattedBytes: String {
@@ -14,7 +15,10 @@ struct ResponseViewerPane: View {
     let error: Error?
     @Binding var activeTab: ResponseTab
     let isLoading: Bool
-    
+    let request: HTTPRequest?
+    let consoleOutput: [String]
+    var onClearConsole: (() -> Void)?
+
     var body: some View {
         VStack(spacing: 0) {
             if isLoading {
@@ -25,7 +29,10 @@ struct ResponseViewerPane: View {
             } else if let response = response {
                 ResponseContentView(
                     response: response,
-                    activeTab: $activeTab
+                    activeTab: $activeTab,
+                    request: request,
+                    consoleOutput: consoleOutput,
+                    onClearConsole: onClearConsole
                 )
             } else {
                 EmptyResponseView()
@@ -38,6 +45,14 @@ struct ResponseViewerPane: View {
 struct ResponseContentView: View {
     let response: HTTPResponse
     @Binding var activeTab: ResponseTab
+    let request: HTTPRequest?
+    let consoleOutput: [String]
+    var onClearConsole: (() -> Void)?
+    @Environment(\.modelContext) private var modelContext
+    @State private var showingSaveExample = false
+    @State private var exampleName = ""
+    @State private var saveError: String?
+    @State private var showingSaveError = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -45,9 +60,12 @@ struct ResponseContentView: View {
             Divider()
             
             ZStack {
-                ResponseBodyView(response: response)
-                    .opacity(activeTab == .body ? 1 : 0)
-                    .allowsHitTesting(activeTab == .body)
+                ResponseBodyView(response: response, onSaveAsExample: {
+                    showingSaveExample = true
+                    exampleName = "\(response.statusCode) \(defaultExampleName)"
+                })
+                .opacity(activeTab == .body ? 1 : 0)
+                .allowsHitTesting(activeTab == .body)
                 
                 ScrollView {
                     ResponseHeadersView(headers: response.headers)
@@ -60,13 +78,82 @@ struct ResponseContentView: View {
                 }
                 .opacity(activeTab == .timing ? 1 : 0)
                 .allowsHitTesting(activeTab == .timing)
+                
+                ScrollView {
+                    ConsoleTabView(output: consoleOutput, onClear: onClearConsole)
+                }
+                .opacity(activeTab == .console ? 1 : 0)
+                .allowsHitTesting(activeTab == .console)
+                
+                ScrollView {
+                    ExamplesTabView(request: request)
+                }
+                .opacity(activeTab == .examples ? 1 : 0)
+                .allowsHitTesting(activeTab == .examples)
             }
+        }
+        .alert("Save as Example", isPresented: $showingSaveExample) {
+            TextField("Name", text: $exampleName)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") {
+                saveExample()
+            }
+        }
+        .alert("Save Failed", isPresented: $showingSaveError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            if let error = saveError {
+                Text(error)
+            }
+        }
+    }
+    
+    private var defaultExampleName: String {
+        guard let req = request else { return "Request" }
+        let method = req.method.rawValue.uppercased()
+        let path = URL(string: req.urlTemplate)?.path ?? req.urlTemplate
+        return "\(method) \(path)"
+    }
+    
+    private func saveExample() {
+        guard let request = request else { return }
+
+        do {
+            let bodyData = try response.getBodyData()
+
+            if bodyData.count > ResponseExample.maxExampleBodySize {
+                saveError = "Response too large to save as example (max 10MB)"
+                showingSaveError = true
+                return
+            }
+
+            let bodyString = String(data: bodyData, encoding: .utf8)
+
+            let example = ResponseExample(
+                name: exampleName,
+                statusCode: response.statusCode,
+                contentType: response.contentType,
+                body: bodyString
+            )
+
+            let headers = response.headers.map { KeyValuePair(key: $0.key, value: $0.value, isEnabled: true) }
+            example.headersData = headers.encode()
+            example.request = request
+
+            modelContext.insert(example)
+            try modelContext.save()
+
+            saveError = nil
+        } catch {
+            saveError = error.localizedDescription
+            showingSaveError = true
         }
     }
 }
 
 struct ResponseBodyView: View {
     let response: HTTPResponse
+    let onSaveAsExample: (() -> Void)?
     @State private var showRaw = false
     @State private var bodyData: Data?
     @State private var loadError: String?
@@ -99,6 +186,12 @@ struct ResponseBodyView: View {
                         .toggleStyle(.checkbox)
                 }
                 Spacer()
+                if let onSaveAsExample = onSaveAsExample {
+                    Button("Save as Example") {
+                        onSaveAsExample()
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button("Copy") {
                     if let data = bodyData {
                         NSPasteboard.general.clearContents()
@@ -420,6 +513,180 @@ struct EmptyResponseView: View {
     }
 }
 
+struct ExamplesTabView: View {
+    let request: HTTPRequest?
+    @Query(sort: \ResponseExample.createdAt, order: .reverse) private var allExamples: [ResponseExample]
+    @Environment(\.modelContext) private var modelContext
+    @State private var selectedExample: ResponseExample?
+    @State private var showingDeleteAlert = false
+    @State private var exampleToDelete: ResponseExample?
+    
+    private var examples: [ResponseExample] {
+        guard let requestId = request?.id else { return [] }
+        return allExamples.filter { $0.request?.id == requestId }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if examples.isEmpty {
+                ContentUnavailableView(
+                    "No Examples",
+                    systemImage: "doc.text",
+                    description: Text("Save a response as an example to view it here")
+                )
+                .frame(maxHeight: .infinity)
+            } else {
+                Text("Saved Examples")
+                    .font(.headline)
+                
+                List(examples, selection: $selectedExample) { example in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(example.name)
+                                .fontWeight(.medium)
+                            HStack {
+                                Text("\(example.statusCode)")
+                                    .foregroundStyle(statusColor(example.statusCode))
+                                Text("•")
+                                    .foregroundStyle(.secondary)
+                                Text(example.createdAt, style: .relative)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .font(.caption)
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            exampleToDelete = example
+                            showingDeleteAlert = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 4)
+                    .tag(example)
+                }
+                .listStyle(.inset)
+                
+                if let selected = selectedExample {
+                    Divider()
+                    ExampleDetailView(example: selected)
+                }
+            }
+        }
+        .padding(12)
+        .alert("Delete Example?", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                if let example = exampleToDelete {
+                    modelContext.delete(example)
+                    try? modelContext.save()
+                }
+            }
+        }
+    }
+    
+    private func statusColor(_ code: Int) -> Color {
+        switch code {
+        case 200..<300: .green
+        case 300..<400: .blue
+        case 400..<500: .orange
+        case 500..<600: .red
+        default: .gray
+        }
+    }
+}
+
+struct ExampleDetailView: View {
+    let example: ResponseExample
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Viewing Example")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor)
+                    .cornerRadius(4)
+                Spacer()
+            }
+            
+            if let body = example.body {
+                ScrollView {
+                    Text(body)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 200)
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(6)
+            }
+        }
+    }
+}
+
+struct ConsoleTabView: View {
+    let output: [String]
+    var onClear: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Console Output")
+                    .font(.headline)
+                Spacer()
+                if !output.isEmpty {
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        let text = output.joined(separator: "\n")
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Clear") {
+                        onClear?()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            
+            if output.isEmpty {
+                ContentUnavailableView(
+                    "No Console Output",
+                    systemImage: "terminal",
+                    description: Text("Console output from pre/post-request scripts will appear here")
+                )
+                .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(output.enumerated()), id: \.offset) { index, line in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("\(index + 1)")
+                                    .foregroundStyle(.secondary)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .frame(width: 24, alignment: .trailing)
+                                Text(line)
+                                    .font(.system(.body, design: .monospaced))
+                                    .textSelection(.enabled)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                }
+                .background(Color(nsColor: .textBackgroundColor))
+                .cornerRadius(6)
+            }
+        }
+        .padding(12)
+    }
+}
+
 #Preview("With Response") {
     let sampleResponse = HTTPResponse(
         statusCode: 200,
@@ -443,7 +710,9 @@ struct EmptyResponseView: View {
         response: sampleResponse,
         error: nil,
         activeTab: .constant(.body),
-        isLoading: false
+        isLoading: false,
+        request: nil,
+        consoleOutput: ["Script executed successfully", "Response time: 234ms"]
     )
     .frame(width: 400, height: 500)
 }

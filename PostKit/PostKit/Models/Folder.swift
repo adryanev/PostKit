@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class Folder {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var sortOrder: Int
     

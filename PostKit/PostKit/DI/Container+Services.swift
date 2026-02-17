@@ -24,4 +24,16 @@ extension Container {
         self { @MainActor in FileExporter() }
             .scope(.singleton)
     }
+    
+    nonisolated var scriptEngine: Factory<ScriptEngineProtocol> {
+        self { JavaScriptEngine() }
+    }
+    
+    nonisolated var spotlightIndexer: Factory<SpotlightIndexerProtocol> {
+        self { SpotlightIndexer.shared }.singleton
+    }
+
+    nonisolated var requestBuilder: Factory<RequestBuilder> {
+        self { RequestBuilder() }
+    }
 }

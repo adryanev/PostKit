@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class RequestCollection {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var folderPath: String?
     var createdAt: Date

@@ -9,6 +9,8 @@ struct RequestEditorPane: View {
         case headers = "Headers"
         case body = "Body"
         case auth = "Auth"
+        case preRequest = "Pre-req"
+        case postRequest = "Post-req"
     }
     
     var body: some View {
@@ -46,6 +48,24 @@ struct RequestEditorPane: View {
                     )
                 case .auth:
                     AuthEditor(authConfig: $request.authConfig)
+                case .preRequest:
+                    ScriptEditor(
+                        title: "Pre-request Script",
+                        description: "This script runs before the request is sent. Use pk.environment.get/set, pk.request.headers/method/url/body.",
+                        script: Binding(
+                            get: { request.preRequestScript ?? "" },
+                            set: { request.preRequestScript = $0.isEmpty ? nil : $0 }
+                        )
+                    )
+                case .postRequest:
+                    ScriptEditor(
+                        title: "Post-request Script",
+                        description: "This script runs after the response is received. Use pk.response.code/headers/body/time, pk.environment.get/set.",
+                        script: Binding(
+                            get: { request.postRequestScript ?? "" },
+                            set: { request.postRequestScript = $0.isEmpty ? nil : $0 }
+                        )
+                    )
                 }
             }
         }
@@ -248,6 +268,36 @@ struct AuthEditor: View {
             }
             
             Spacer()
+        }
+        .padding(12)
+    }
+}
+
+struct ScriptEditor: View {
+    let title: String
+    let description: String
+    @Binding var script: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+            }
+            
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            CodeTextView(
+                text: $script,
+                language: "javascript",
+                isEditable: true
+            )
+            .frame(maxHeight: .infinity)
+            .background(Color(nsColor: .textBackgroundColor))
+            .cornerRadius(6)
         }
         .padding(12)
     }

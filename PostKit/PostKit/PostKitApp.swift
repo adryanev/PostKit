@@ -42,6 +42,8 @@ struct PostKitApp: App {
     @State private var curlImportCollection: RequestCollection?
     @State private var showingOpenAPIImport = false
     @State private var showingImportCollection = false
+    @State private var showingPostmanImport = false
+    @State private var postmanEnvironmentCollection: RequestCollection?
     
     init() {
         Task.detached(priority: .background) {
@@ -67,9 +69,19 @@ struct PostKitApp: App {
             HTTPRequest.self,
             APIEnvironment.self,
             Variable.self,
-            HistoryEntry.self
+            HistoryEntry.self,
+            ResponseExample.self
         ])
+        
+        #if ICLOUD_SYNC
+        let modelConfiguration = ModelConfiguration(
+            "PostKit",
+            schema: schema,
+            cloudKitDatabase: .automatic
+        )
+        #else
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        #endif
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -86,6 +98,12 @@ struct PostKitApp: App {
                 }
                 .sheet(isPresented: $showingOpenAPIImport) {
                     OpenAPIImportSheet()
+                }
+                .sheet(isPresented: $showingPostmanImport) {
+                    PostmanImportSheet()
+                }
+                .sheet(item: $postmanEnvironmentCollection) { collection in
+                    PostmanEnvironmentImportSheet(collection: collection)
                 }
                 .fileImporter(
                     isPresented: $showingImportCollection,
@@ -111,6 +129,11 @@ struct PostKitApp: App {
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 
+                Button("Import Postman Collection...") {
+                    showingPostmanImport = true
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                
                 Divider()
                 
                 Button("Import Collection...") {
@@ -119,6 +142,12 @@ struct PostKitApp: App {
                 .keyboardShortcut("i", modifiers: [.command, .option])
             }
         }
+        
+        MenuBarExtra("PostKit", systemImage: "network") {
+            MenuBarView()
+        }
+        .menuBarExtraStyle(.menu)
+        .modelContainer(sharedModelContainer)
     }
     
     private func fetchOrCreateImportCollection() -> RequestCollection {

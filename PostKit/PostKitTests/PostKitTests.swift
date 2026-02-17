@@ -1110,7 +1110,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let spec = OpenAPISpec(
@@ -1149,7 +1150,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let spec = OpenAPISpec(
@@ -1186,7 +1188,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let spec = OpenAPISpec(
@@ -1227,7 +1230,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let existingSnapshot2 = EndpointSnapshot(
@@ -1241,7 +1245,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let spec = OpenAPISpec(
@@ -1264,10 +1269,10 @@ struct OpenAPIDiffEngineTests {
         )
         
         #expect(result.newEndpoints.count == 1)
-        #expect(result.newEndpoints[0].method == .post)
+        #expect(result.newEndpoints[0].method == HTTPMethod.post)
         #expect(result.changedEndpoints.count == 1)
         #expect(result.removedEndpoints.count == 1)
-        #expect(result.removedEndpoints[0].method == .delete)
+        #expect(result.removedEndpoints[0].method == HTTPMethod.delete)
         #expect(result.unchangedEndpoints.isEmpty)
     }
     
@@ -1283,7 +1288,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let spec = OpenAPISpec(
@@ -1317,7 +1323,8 @@ struct OpenAPIDiffEngineTests {
             bodyType: .none,
             bodyContentType: nil,
             authDescription: nil,
-            tags: []
+            tags: [],
+            historyCount: 0
         )
         
         let spec = OpenAPISpec(
@@ -2336,6 +2343,446 @@ struct SyntaxHighlightingTests {
         let data = Data()
         let result = computeDisplayString(for: data, contentType: "text/plain", showRaw: false)
         #expect(result == "")
+    }
+}
+
+// MARK: - PostmanParser Tests
+
+struct PostmanParserTests {
+    let parser = PostmanParser()
+    
+    @Test func parseSimpleCollection() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Test Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [
+                [
+                    "name": "Get Users",
+                    "request": [
+                        "method": "GET",
+                        "url": "https://api.example.com/users"
+                    ]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        #expect(collection.info.name == "Test Collection")
+        #expect(collection.items.count == 1)
+        #expect(collection.items[0].name == "Get Users")
+        #expect(collection.items[0].request?.method == "GET")
+        #expect(collection.items[0].request?.url.rawValue == "https://api.example.com/users")
+    }
+    
+    @Test func parseNestedFolders() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [
+                [
+                    "name": "Folder 1",
+                    "item": [
+                        [
+                            "name": "Request 1",
+                            "request": [
+                                "method": "GET",
+                                "url": "https://api.example.com/1"
+                            ]
+                        ],
+                        [
+                            "name": "Folder 2",
+                            "item": [
+                                [
+                                    "name": "Request 2",
+                                    "request": [
+                                        "method": "POST",
+                                        "url": "https://api.example.com/2"
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        #expect(collection.items.count == 1)
+        #expect(collection.items[0].name == "Folder 1")
+        #expect(collection.items[0].items?.count == 2)
+        #expect(collection.items[0].items?[0].request?.method == "GET")
+        #expect(collection.items[0].items?[1].name == "Folder 2")
+    }
+    
+    @Test func parseWithAuth() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [
+                [
+                    "name": "Protected Request",
+                    "request": [
+                        "method": "GET",
+                        "url": "https://api.example.com/protected",
+                        "auth": [
+                            "type": "bearer",
+                            "bearer": [
+                                ["key": "token", "value": "my-token-123"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        let auth = collection.items[0].request?.auth
+        #expect(auth?.type == "bearer")
+        #expect(auth?.bearer?.first?.key == "token")
+        #expect(auth?.bearer?.first?.value == "my-token-123")
+    }
+    
+    @Test func parseWithEnvironmentVariables() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [],
+            "variable": [
+                ["key": "baseUrl", "value": "https://api.example.com"],
+                ["key": "apiKey", "value": "secret-key", "type": "secret"]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        #expect(collection.variables.count == 2)
+        #expect(collection.variables[0].key == "baseUrl")
+        #expect(collection.variables[0].value == "https://api.example.com")
+        #expect(collection.variables[1].type == "secret")
+    }
+    
+    @Test func parseWithPreRequestScript() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [
+                [
+                    "name": "Request with Script",
+                    "request": [
+                        "method": "GET",
+                        "url": "https://api.example.com/test"
+                    ],
+                    "event": [
+                        [
+                            "listen": "prerequest",
+                            "script": [
+                                "exec": ["console.log('pre-request');", "pm.environment.set('token', '123');"]
+                            ]
+                        ],
+                        [
+                            "listen": "test",
+                            "script": [
+                                "exec": ["pm.test('Status is 200', function() {", "  pm.response.to.have.status(200);", "});"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        let events = collection.items[0].events
+        #expect(events?.count == 2)
+        #expect(events?[0].listen == "prerequest")
+        #expect(events?[0].script?.exec?.count == 2)
+    }
+    
+    @Test func rejectV1Format() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Old Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v1.0.0/collection.json"
+            ],
+            "item": []
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        #expect(throws: PostmanParserError.unsupportedVersion) {
+            try parser.parse(data)
+        }
+    }
+    
+    @Test func rejectInvalidJSON() throws {
+        let data = "not valid json".data(using: .utf8)!
+        
+        #expect(throws: PostmanParserError.invalidFormat) {
+            try parser.parse(data)
+        }
+    }
+    
+    @Test func handleMissingOptionalFields() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Minimal Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        #expect(collection.info.name == "Minimal Collection")
+        #expect(collection.items.isEmpty)
+        #expect(collection.variables.isEmpty)
+    }
+    
+    @Test func parseWithHeaders() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [
+                [
+                    "name": "Request",
+                    "request": [
+                        "method": "POST",
+                        "url": "https://api.example.com/data",
+                        "header": [
+                            ["key": "Content-Type", "value": "application/json", "enabled": true],
+                            ["key": "Authorization", "value": "Bearer token", "enabled": true],
+                            ["key": "X-Disabled", "value": "disabled", "enabled": false]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        let headers = collection.items[0].request?.headers ?? []
+        #expect(headers.count == 3)
+        #expect(headers[0].key == "Content-Type")
+        #expect(headers[0].value == "application/json")
+        #expect(headers[2].enabled == false)
+    }
+    
+    @Test func parseWithBody() throws {
+        let json: [String: Any] = [
+            "info": [
+                "name": "Collection",
+                "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+            ],
+            "item": [
+                [
+                    "name": "POST Request",
+                    "request": [
+                        "method": "POST",
+                        "url": "https://api.example.com/users",
+                        "body": [
+                            "mode": "raw",
+                            "raw": "{\"name\": \"John\", \"email\": \"john@example.com\"}"
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let collection = try parser.parse(data)
+        let body = collection.items[0].request?.body
+        #expect(body?.mode == "raw")
+        #expect(body?.raw?.contains("John") == true)
+    }
+    
+    @Test func parseEnvironment() throws {
+        let json: [String: Any] = [
+            "name": "Development",
+            "values": [
+                ["key": "baseUrl", "value": "https://dev.api.example.com", "enabled": true],
+                ["key": "apiKey", "value": "dev-key-123", "type": "secret", "enabled": true]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        
+        let env = try parser.parseEnvironment(data)
+        #expect(env.name == "Development")
+        #expect(env.values.count == 2)
+        #expect(env.values[0].key == "baseUrl")
+        #expect(env.values[1].type == "secret")
+    }
+}
+
+// MARK: - JavaScriptEngine Tests
+
+struct JavaScriptEngineTests {
+    let engine = JavaScriptEngine()
+    
+    // MARK: - Pre-request Script Tests
+    
+    @Test func preRequestConsoleLog() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "console.log('test message');", request: request, environment: [:])
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput[0] == "test message")
+    }
+    
+    @Test func preRequestEnvironmentGet() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "console.log(pk.environment.get('token'));", request: request, environment: ["token": "abc123"])
+        #expect(result.consoleOutput[0] == "abc123")
+    }
+    
+    @Test func preRequestEnvironmentSet() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "pk.environment.set('newVar', 'newValue');", request: request, environment: [:])
+        #expect(result.environmentChanges["newVar"] == "newValue")
+    }
+    
+    @Test func preRequestVariablesAlias() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "console.log(pk.variables.get('myVar'));", request: request, environment: ["myVar": "test"])
+        #expect(result.consoleOutput[0] == "test")
+    }
+    
+    @Test func preRequestAccessRequestData() async throws {
+        let request = ScriptRequest(method: "POST", url: "https://api.example.com/users", headers: ["Content-Type": "application/json"], body: "{\"name\":\"test\"}")
+        let result = try await engine.executePreRequest(script: "console.log(pk.request.method + ' ' + pk.request.url);", request: request, environment: [:])
+        #expect(result.consoleOutput[0] == "POST https://api.example.com/users")
+    }
+    
+    @Test func preRequestAccessHeaders() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: ["Authorization": "Bearer token"], body: nil)
+        let result = try await engine.executePreRequest(script: "console.log(pk.request.headers.get('Authorization'));", request: request, environment: [:])
+        #expect(result.consoleOutput[0] == "Bearer token")
+    }
+    
+    @Test func preRequestModifyURL() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com/v1", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "pk.request.url = 'https://api.example.com/v2';", request: request, environment: [:])
+        #expect(result.modifiedURL == "https://api.example.com/v2")
+    }
+    
+    @Test func preRequestModifyBody() async throws {
+        let request = ScriptRequest(method: "POST", url: "https://api.example.com", headers: [:], body: "original")
+        let result = try await engine.executePreRequest(script: "pk.request.body = JSON.stringify({modified: true});", request: request, environment: [:])
+        #expect(result.modifiedBody == "{\"modified\":true}")
+    }
+    
+    @Test func preRequestPMShim() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "console.log(pm.environment.get('key'));", request: request, environment: ["key": "shim-value"])
+        #expect(result.consoleOutput[0] == "shim-value")
+    }
+    
+    @Test func preRequestScriptError() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        await #expect(throws: ScriptEngineError.self) {
+            _ = try await engine.executePreRequest(script: "undefinedFunction();", request: request, environment: [:])
+        }
+    }
+    
+    // MARK: - Post-request Script Tests
+    
+    @Test func postRequestConsoleLog() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log('response received');", response: response, environment: [:])
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput[0] == "response received")
+    }
+    
+    @Test func postRequestAccessResponseCode() async throws {
+        let response = ScriptResponse(statusCode: 201, headers: [:], body: nil, duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log(pk.response.code);", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "201")
+    }
+    
+    @Test func postRequestAccessResponseTime() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.234)
+        let result = try await engine.executePostRequest(script: "console.log(pk.response.responseTime);", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "234")
+    }
+    
+    @Test func postRequestAccessResponseBodyText() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: "{\"name\":\"John\"}", duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log(pk.response.text());", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "{\"name\":\"John\"}")
+    }
+    
+    @Test func postRequestAccessResponseBodyJSON() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: "{\"name\":\"Jane\",\"age\":30}", duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log(pk.response.json().name);", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "Jane")
+    }
+    
+    @Test func postRequestAccessResponseHeaders() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: ["Content-Type": "application/json"], body: nil, duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log(pk.response.headers.get('Content-Type'));", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "application/json")
+    }
+    
+    @Test func postRequestEnvironmentSet() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: "{\"token\":\"newToken123\"}", duration: 0.5)
+        let result = try await engine.executePostRequest(script: "pk.environment.set('authToken', pk.response.json().token);", response: response, environment: [:])
+        #expect(result.environmentChanges["authToken"] == "newToken123")
+    }
+    
+    @Test func postRequestPMShim() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log(pm.response.code);", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "200")
+    }
+    
+    @Test func postRequestScriptError() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.5)
+        await #expect(throws: ScriptEngineError.self) {
+            _ = try await engine.executePostRequest(script: "throw new Error('test error');", response: response, environment: [:])
+        }
+    }
+    
+    // MARK: - Edge Cases
+    
+    @Test func emptyScriptSucceeds() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "", request: request, environment: [:])
+        #expect(result.consoleOutput.isEmpty)
+        #expect(result.environmentChanges.isEmpty)
+    }
+    
+    @Test func nullJSONResponse() async throws {
+        let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.5)
+        let result = try await engine.executePostRequest(script: "console.log(pk.response.json());", response: response, environment: [:])
+        #expect(result.consoleOutput[0] == "undefined")
+    }
+    
+    @Test func multipleConsoleLogs() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(script: "console.log('a'); console.log('b'); console.log('c');", request: request, environment: [:])
+        #expect(result.consoleOutput == ["a", "b", "c"])
+    }
+    
+    @Test func environmentMergePreservesOriginal() async throws {
+        let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
+        let result = try await engine.executePreRequest(
+            script: "pk.environment.set('newKey', 'newValue'); console.log(pk.environment.get('existingKey'));",
+            request: request,
+            environment: ["existingKey": "existingValue"]
+        )
+        #expect(result.consoleOutput[0] == "existingValue")
+        #expect(result.environmentChanges["newKey"] == "newValue")
     }
 }
 

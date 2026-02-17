@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class APIEnvironment {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var isActive: Bool
     var createdAt: Date
