@@ -85,6 +85,10 @@ struct CollectionRow: View {
         RequestRow(request: request, compact: true)
             .tag(request)
             .contextMenu {
+                Button(request.isPinned ? "Unpin from Menu Bar" : "Pin to Menu Bar") {
+                    request.isPinned.toggle()
+                }
+                Divider()
                 Button("Rename") {
                     renamingRequest = request
                     newName = request.name
@@ -173,6 +177,10 @@ struct FolderRow: View {
                 RequestRow(request: request, compact: true)
                     .tag(request)
                     .contextMenu {
+                        Button(request.isPinned ? "Unpin from Menu Bar" : "Pin to Menu Bar") {
+                            request.isPinned.toggle()
+                        }
+                        Divider()
                         Button("Rename") {
                             renamingRequest = request
                             newName = request.name

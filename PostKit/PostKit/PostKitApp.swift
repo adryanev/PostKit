@@ -133,6 +133,12 @@ struct PostKitApp: App {
                 .keyboardShortcut("i", modifiers: [.command, .option])
             }
         }
+        
+        MenuBarExtra("PostKit", systemImage: "network") {
+            MenuBarView()
+        }
+        .menuBarExtraStyle(.menu)
+        .modelContainer(sharedModelContainer)
     }
     
     private func fetchOrCreateImportCollection() -> RequestCollection {

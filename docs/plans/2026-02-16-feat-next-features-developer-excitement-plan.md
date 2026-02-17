@@ -1159,22 +1159,22 @@ struct SpotlightIndexerTests {
 - [ ] Name collision on import prompts user: Merge, Replace, or Rename
 
 #### Examples (Phase 2)
-- [ ] "Save as Example" creates `ResponseExample` linked to current `HTTPRequest`
-- [ ] Examples tab lists all saved examples with status code badges
-- [ ] Viewing example loads body in read-only mode with "Viewing Example" banner
+- [x] "Save as Example" creates `ResponseExample` linked to current `HTTPRequest`
+- [x] Examples tab lists all saved examples with status code badges
+- [x] Viewing example loads body in read-only mode with "Viewing Example" banner
 - [ ] OpenAPI import creates `ResponseExample` entries from spec examples
-- [ ] Responses >10MB cannot be saved as examples (clear error message)
-- [ ] Deleting a request cascade-deletes its examples
+- [x] Responses >10MB cannot be saved as examples (clear error message)
+- [x] Deleting a request cascade-deletes its examples
 
 #### Scripts (Phase 3)
-- [ ] Pre-request script modifies headers, URL, and body before send
-- [ ] Post-request script reads response and sets environment variables
+- [x] Pre-request script modifies headers, URL, and body before send
+- [x] Post-request script reads response and sets environment variables
 - [ ] `pk.environment.set()` persists to SwiftData
-- [ ] `pm.*` calls auto-map to `pk.*` equivalents
-- [ ] Script errors show line number and message in Console tab
-- [ ] Scripts timeout after 5 seconds with clear error
-- [ ] `console.log()` output appears in Console tab
-- [ ] Script editor uses CodeTextView with JavaScript syntax highlighting
+- [x] `pm.*` calls auto-map to `pk.*` equivalents
+- [x] Script errors show line number and message in Console tab
+- [x] Scripts timeout after 5 seconds with clear error
+- [x] `console.log()` output appears in Console tab
+- [x] Script editor uses CodeTextView with JavaScript syntax highlighting
 
 #### iCloud Sync (Phase 4)
 - [ ] Collections, folders, requests, environments, variables, and examples sync across devices
