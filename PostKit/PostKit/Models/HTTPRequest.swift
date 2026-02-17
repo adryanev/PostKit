@@ -17,12 +17,18 @@ final class HTTPRequest {
     var updatedAt: Date
     var openAPIPath: String?
     var openAPIMethod: String?
+    var preRequestScript: String?
+    var postRequestScript: String?
+    var isPinned: Bool = false
     
     var collection: RequestCollection?
     var folder: Folder?
 
     @Relationship(deleteRule: .cascade, inverse: \HistoryEntry.request)
     var history: [HistoryEntry] = []
+    
+    @Relationship(deleteRule: .cascade, inverse: \ResponseExample.request)
+    var examples: [ResponseExample] = []
     
     @Transient var method: HTTPMethod {
         get { HTTPMethod(rawValue: methodRaw) ?? .get }
@@ -78,6 +84,8 @@ final class HTTPRequest {
         copy.bodyTypeRaw = bodyTypeRaw
         copy.bodyContent = bodyContent
         copy.authConfigData = authConfigData
+        copy.preRequestScript = preRequestScript
+        copy.postRequestScript = postRequestScript
         return copy
     }
 }

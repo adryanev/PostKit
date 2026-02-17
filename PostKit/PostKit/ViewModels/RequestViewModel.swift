@@ -242,4 +242,5 @@ enum ResponseTab: String, CaseIterable {
     case body = "Body"
     case headers = "Headers"
     case timing = "Timing"
+    case examples = "Examples"
 }
