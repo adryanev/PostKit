@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class HTTPRequest {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var name: String
     var methodRaw: String
     var urlTemplate: String

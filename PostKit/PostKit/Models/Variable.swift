@@ -7,7 +7,7 @@ private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "Variable")
 
 @Model
 final class Variable {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var key: String
     var value: String
     var isSecret: Bool

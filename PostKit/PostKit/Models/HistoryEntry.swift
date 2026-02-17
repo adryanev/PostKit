@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 final class HistoryEntry {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
     var timestamp: Date
     var methodRaw: String
     var url: String

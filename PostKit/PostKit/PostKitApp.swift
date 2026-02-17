@@ -72,7 +72,16 @@ struct PostKitApp: App {
             HistoryEntry.self,
             ResponseExample.self
         ])
+        
+        #if ICLOUD_SYNC
+        let modelConfiguration = ModelConfiguration(
+            "PostKit",
+            schema: schema,
+            cloudKitDatabase: .automatic
+        )
+        #else
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        #endif
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

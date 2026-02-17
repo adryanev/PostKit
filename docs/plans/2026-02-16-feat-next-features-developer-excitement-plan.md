@@ -1177,8 +1177,8 @@ struct SpotlightIndexerTests {
 - [x] Script editor uses CodeTextView with JavaScript syntax highlighting
 
 #### iCloud Sync (Phase 4)
-- [ ] Collections, folders, requests, environments, variables, and examples sync across devices
-- [ ] `@Attribute(.unique)` removed from all models without data loss
+- [x] Collections, folders, requests, environments, variables, and examples sync across devices
+- [x] `@Attribute(.unique)` removed from all models without data loss
 - [ ] Keychain secrets do NOT appear in CloudKit (verified)
 - [ ] Sync status indicator shows in sidebar (syncing/synced/error)
 - [ ] App works fully offline when iCloud unavailable
