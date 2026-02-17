@@ -29,6 +29,14 @@ final class PostmanImporter {
     
     private let parser: PostmanParserProtocol
     private let maxFolderDepth = 2
+
+    /// RFC 3986 unreserved characters only — excludes `=`, `&`, and `+`
+    /// which are delimiters in `application/x-www-form-urlencoded` encoding.
+    private static let formURLEncodedAllowed: CharacterSet = {
+        var cs = CharacterSet()
+        cs.insert(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        return cs
+    }()
     
     nonisolated init(parser: PostmanParserProtocol = PostmanParser()) {
         self.parser = parser
@@ -88,10 +96,11 @@ final class PostmanImporter {
             context.insert(env)
             
             for postmanVar in collection.variables {
+                let isSecret = postmanVar.type == "secret"
                 let variable = Variable(
                     key: postmanVar.key,
-                    value: postmanVar.value ?? "",
-                    isSecret: postmanVar.type == "secret",
+                    value: isSecret ? "" : (postmanVar.value ?? ""),
+                    isSecret: isSecret,
                     isEnabled: true
                 )
                 variable.environment = env
@@ -293,8 +302,8 @@ final class PostmanImporter {
                 if let encoded = body.urlencoded {
                     let pairs = encoded.compactMap { kv -> String? in
                         guard !kv.key.isEmpty else { return nil }
-                        let encodedKey = kv.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? kv.key
-                        let encodedValue = (kv.value ?? "").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? (kv.value ?? "")
+                        let encodedKey = kv.key.addingPercentEncoding(withAllowedCharacters: Self.formURLEncodedAllowed) ?? kv.key
+                        let encodedValue = (kv.value ?? "").addingPercentEncoding(withAllowedCharacters: Self.formURLEncodedAllowed) ?? (kv.value ?? "")
                         return "\(encodedKey)=\(encodedValue)"
                     }
                     httpRequest.bodyContent = pairs.joined(separator: "&")
@@ -315,8 +324,13 @@ final class PostmanImporter {
                     if let query = graphql.query {
                         gqlDict["query"] = query
                     }
-                    if let variables = graphql.variables {
-                        gqlDict["variables"] = variables
+                    if let variables = graphql.variables, !variables.isEmpty {
+                        if let varData = variables.data(using: .utf8),
+                           let parsed = try? JSONSerialization.jsonObject(with: varData) {
+                            gqlDict["variables"] = parsed
+                        } else {
+                            gqlDict["variables"] = variables
+                        }
                     }
                     if let data = try? JSONSerialization.data(withJSONObject: gqlDict),
                        let json = String(data: data, encoding: .utf8) {
@@ -333,7 +347,9 @@ final class PostmanImporter {
         }
         
         if let auth = request.auth {
-            httpRequest.authConfig = createAuthConfig(from: auth)
+            var authConfig = createAuthConfig(from: auth)
+            authConfig.storeSecrets(forRequestID: httpRequest.id.uuidString)
+            httpRequest.authConfig = authConfig
         }
         
         if let events = item.events {

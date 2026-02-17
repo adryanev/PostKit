@@ -247,7 +247,7 @@ struct PostmanEnvironmentImportSheet: View {
                     
                     ScrollView {
                         VStack(alignment: .leading, spacing: 4) {
-                            ForEach(variables, id: \.key) { variable in
+                            ForEach(Array(variables.enumerated()), id: \.offset) { _, variable in
                                 HStack {
                                     Toggle("", isOn: Binding(
                                         get: { secretKeys.contains(variable.key) },

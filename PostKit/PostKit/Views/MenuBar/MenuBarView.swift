@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 import FactoryKit
 
 struct MenuBarResult {
@@ -93,18 +94,18 @@ struct MenuBarView: View {
                     error: nil
                 )
                 sendingRequestIDs.remove(request.id)
-            }
 
-            let entry = HistoryEntry(
-                method: request.method,
-                url: request.urlTemplate,
-                statusCode: response.statusCode,
-                responseTime: response.duration,
-                responseSize: response.size
-            )
-            entry.request = request
-            modelContext.insert(entry)
-            try? modelContext.save()
+                let entry = HistoryEntry(
+                    method: request.method,
+                    url: request.urlTemplate,
+                    statusCode: response.statusCode,
+                    responseTime: response.duration,
+                    responseSize: response.size
+                )
+                entry.request = request
+                modelContext.insert(entry)
+                try? modelContext.save()
+            }
         } catch {
             await MainActor.run {
                 results[request.id] = MenuBarResult(
@@ -126,6 +127,7 @@ struct MenuBarRequestRow: View {
     let onSend: () async -> Void
 
     private let maxDisplayTime: TimeInterval = 30
+    @State private var refreshTick: Int = 0
 
     var body: some View {
         Button {
@@ -169,6 +171,9 @@ struct MenuBarRequestRow: View {
             }
         }
         .disabled(isSending || hasScripts)
+        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
+            refreshTick += 1
+        }
     }
 
     @ViewBuilder

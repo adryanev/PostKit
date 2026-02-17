@@ -197,9 +197,10 @@ final class RequestViewModel {
 
             for (key, value) in changes {
                 if let existingVar = activeEnv.variables.first(where: { $0.key == key }) {
-                    existingVar.value = value
                     if existingVar.isSecret {
                         existingVar.secureValue = value
+                    } else {
+                        existingVar.value = value
                     }
                 } else {
                     let newVar = Variable(key: key, value: value)
