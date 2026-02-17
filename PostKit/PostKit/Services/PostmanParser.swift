@@ -264,7 +264,12 @@ final class PostmanParser: PostmanParserProtocol, Sendable {
         let urlencodedArray = dict["urlencoded"] as? [[String: Any]]
         let urlencoded = urlencodedArray?.map { parseKeyValue($0) }
         
-        let file = dict["file"] as? String
+        let file: String?
+        if let fileDict = dict["file"] as? [String: Any] {
+            file = fileDict["src"] as? String
+        } else {
+            file = dict["file"] as? String
+        }
         
         var graphql: PostmanGraphQL?
         if let graphqlDict = dict["graphql"] as? [String: Any] {

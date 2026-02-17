@@ -95,6 +95,11 @@ final class PostmanImporter {
                     isEnabled: true
                 )
                 variable.environment = env
+                context.insert(variable)
+
+                if variable.isSecret, let value = postmanVar.value, !value.isEmpty {
+                    variable.secureValue = value
+                }
             }
         }
         
@@ -124,7 +129,8 @@ final class PostmanImporter {
                 isEnabled: true
             )
             variable.environment = env
-            
+            context.insert(variable)
+
             if isSecret, let value = postmanVar.value, !value.isEmpty {
                 variable.secureValue = value
             }
@@ -287,8 +293,9 @@ final class PostmanImporter {
                 if let encoded = body.urlencoded {
                     let pairs = encoded.compactMap { kv -> String? in
                         guard !kv.key.isEmpty else { return nil }
-                        let value = kv.value ?? ""
-                        return "\(kv.key)=\(value)"
+                        let encodedKey = kv.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? kv.key
+                        let encodedValue = (kv.value ?? "").addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? (kv.value ?? "")
+                        return "\(encodedKey)=\(encodedValue)"
                     }
                     httpRequest.bodyContent = pairs.joined(separator: "&")
                 }

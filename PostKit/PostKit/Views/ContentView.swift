@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
     @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
+    private static var hasIndexedOnce = false
 
     enum Pane: Hashable {
         case sidebar, detail
@@ -68,8 +69,11 @@ struct ContentView: View {
             handleSpotlightActivity(userActivity)
         }
         .onAppear {
-            Task {
-                await spotlightIndexer.reindexAll(requests: allRequests)
+            if !Self.hasIndexedOnce {
+                Self.hasIndexedOnce = true
+                Task {
+                    await spotlightIndexer.reindexAll(requests: allRequests)
+                }
             }
         }
     }
@@ -88,7 +92,7 @@ struct ContentView: View {
         
         if let request = allRequests.first(where: { $0.id == requestId }) {
             selectedRequest = request
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
     }
     
@@ -98,7 +102,7 @@ struct ContentView: View {
         
         if let request = allRequests.first(where: { $0.id == identifier }) {
             selectedRequest = request
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
         }
     }
 }

@@ -8,6 +8,7 @@ final class SpotlightIndexer: SpotlightIndexerProtocol, Sendable {
     static let shared = SpotlightIndexer()
     private nonisolated init() {}
     
+    @MainActor
     func indexRequest(_ request: HTTPRequest, collectionName: String?, folderName: String?) async {
         let attributeSet = CSSearchableItemAttributeSet(contentType: .item)
         attributeSet.title = request.name
@@ -42,6 +43,7 @@ final class SpotlightIndexer: SpotlightIndexerProtocol, Sendable {
         )
     }
     
+    @MainActor
     func reindexAll(requests: [HTTPRequest]) async {
         try? await CSSearchableIndex.default().deleteAllSearchableItems()
         for request in requests {

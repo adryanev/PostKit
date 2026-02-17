@@ -28,7 +28,8 @@ struct RequestDetailView: View {
                     activeTab: activeTabBinding,
                     isLoading: viewModel?.isSending ?? false,
                     request: request,
-                    consoleOutput: viewModel?.consoleOutput ?? []
+                    consoleOutput: viewModel?.consoleOutput ?? [],
+                    onClearConsole: { viewModel?.consoleOutput.removeAll() }
                 )
                 .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
             }

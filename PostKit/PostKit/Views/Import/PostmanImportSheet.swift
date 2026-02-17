@@ -83,8 +83,8 @@ struct PostmanImportSheet: View {
                     }
                     
                     if preview.scriptCount > 0 {
-                        Label("\(preview.scriptCount) requests have scripts (will be runnable after scripting feature ships)", systemImage: "applescript")
-                            .foregroundStyle(.orange)
+                        Label("\(preview.scriptCount) requests have pre/post-request scripts", systemImage: "applescript")
+                            .foregroundStyle(.secondary)
                             .font(.callout)
                     }
                 }

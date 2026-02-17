@@ -17,7 +17,8 @@ struct ResponseViewerPane: View {
     let isLoading: Bool
     let request: HTTPRequest?
     let consoleOutput: [String]
-    
+    var onClearConsole: (() -> Void)?
+
     var body: some View {
         VStack(spacing: 0) {
             if isLoading {
@@ -30,7 +31,8 @@ struct ResponseViewerPane: View {
                     response: response,
                     activeTab: $activeTab,
                     request: request,
-                    consoleOutput: consoleOutput
+                    consoleOutput: consoleOutput,
+                    onClearConsole: onClearConsole
                 )
             } else {
                 EmptyResponseView()
@@ -45,10 +47,12 @@ struct ResponseContentView: View {
     @Binding var activeTab: ResponseTab
     let request: HTTPRequest?
     let consoleOutput: [String]
+    var onClearConsole: (() -> Void)?
     @Environment(\.modelContext) private var modelContext
     @State private var showingSaveExample = false
     @State private var exampleName = ""
     @State private var saveError: String?
+    @State private var showingSaveError = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -76,7 +80,7 @@ struct ResponseContentView: View {
                 .allowsHitTesting(activeTab == .timing)
                 
                 ScrollView {
-                    ConsoleTabView(output: consoleOutput)
+                    ConsoleTabView(output: consoleOutput, onClear: onClearConsole)
                 }
                 .opacity(activeTab == .console ? 1 : 0)
                 .allowsHitTesting(activeTab == .console)
@@ -94,6 +98,9 @@ struct ResponseContentView: View {
             Button("Save") {
                 saveExample()
             }
+        }
+        .alert("Save Failed", isPresented: $showingSaveError) {
+            Button("OK", role: .cancel) {}
         } message: {
             if let error = saveError {
                 Text(error)
@@ -110,33 +117,36 @@ struct ResponseContentView: View {
     
     private func saveExample() {
         guard let request = request else { return }
-        
+
         do {
             let bodyData = try response.getBodyData()
-            let bodyString = String(data: bodyData, encoding: .utf8)
-            
-            if let body = bodyString, body.count > ResponseExample.maxExampleBodySize {
+
+            if bodyData.count > ResponseExample.maxExampleBodySize {
                 saveError = "Response too large to save as example (max 10MB)"
+                showingSaveError = true
                 return
             }
-            
+
+            let bodyString = String(data: bodyData, encoding: .utf8)
+
             let example = ResponseExample(
                 name: exampleName,
                 statusCode: response.statusCode,
                 contentType: response.contentType,
                 body: bodyString
             )
-            
+
             let headers = response.headers.map { KeyValuePair(key: $0.key, value: $0.value, isEnabled: true) }
             example.headersData = headers.encode()
             example.request = request
-            
+
             modelContext.insert(example)
             try modelContext.save()
-            
+
             saveError = nil
         } catch {
             saveError = error.localizedDescription
+            showingSaveError = true
         }
     }
 }
@@ -621,7 +631,8 @@ struct ExampleDetailView: View {
 
 struct ConsoleTabView: View {
     let output: [String]
-    
+    var onClear: (() -> Void)?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -629,10 +640,15 @@ struct ConsoleTabView: View {
                     .font(.headline)
                 Spacer()
                 if !output.isEmpty {
-                    Button("Clear") {
+                    Button("Copy") {
                         NSPasteboard.general.clearContents()
                         let text = output.joined(separator: "\n")
                         NSPasteboard.general.setString(text, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Clear") {
+                        onClear?()
                     }
                     .buttonStyle(.bordered)
                 }

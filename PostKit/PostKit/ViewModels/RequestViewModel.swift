@@ -30,6 +30,7 @@ final class RequestViewModel {
     @ObservationIgnored @Injected(\.httpClient) private var httpClient
     @ObservationIgnored @Injected(\.variableInterpolator) private var interpolator
     @ObservationIgnored @Injected(\.scriptEngine) private var scriptEngine
+    @ObservationIgnored @Injected(\.requestBuilder) private var requestBuilder
 
     // MARK: - History Cleanup
 
@@ -63,10 +64,12 @@ final class RequestViewModel {
         currentTask = Task { @MainActor in
             do {
                 var variables = self.getActiveEnvironmentVariables()
-                let modifiedRequest = request
-                
+                var effectiveURL = request.urlTemplate
+                var effectiveBody = request.bodyContent
+
                 // Execute pre-request script
                 if let preScript = request.preRequestScript, !preScript.isEmpty {
+                    self.consoleOutput.append("[PostKit] Executing pre-request script...")
                     let scriptRequest = ScriptRequest(
                         method: request.method.rawValue,
                         url: request.urlTemplate,
@@ -81,23 +84,29 @@ final class RequestViewModel {
                     self.consoleOutput.append(contentsOf: preResult.consoleOutput)
                     variables.merge(preResult.environmentChanges) { _, new in new }
                     self.pendingEnvironmentChanges.merge(preResult.environmentChanges) { _, new in new }
-                    
-                    // Apply modifications
+
+                    // Apply modifications to local variables, not the persisted model
                     if let modifiedURL = preResult.modifiedURL {
-                        modifiedRequest.urlTemplate = modifiedURL
+                        effectiveURL = modifiedURL
                     }
                     if let modifiedBody = preResult.modifiedBody {
-                        modifiedRequest.bodyContent = modifiedBody
+                        effectiveBody = modifiedBody
                     }
                 }
-                
-                let urlRequest = try self.buildURLRequest(for: modifiedRequest, with: variables)
+
+                let urlRequest = try self.requestBuilder.buildURLRequest(
+                    for: request,
+                    with: variables,
+                    urlOverride: effectiveURL,
+                    bodyOverride: effectiveBody
+                )
                 let httpResponse = try await self.httpClient.execute(urlRequest, taskID: taskID)
 
                 guard taskID == self.currentTaskID else { return }
                 
                 // Execute post-request script
                 if let postScript = request.postRequestScript, !postScript.isEmpty {
+                    self.consoleOutput.append("[PostKit] Executing post-request script...")
                     let bodyString: String? = {
                         guard let body = httpResponse.body else { return nil }
                         return String(data: body, encoding: .utf8)
@@ -153,144 +162,62 @@ final class RequestViewModel {
         isSending = false
     }
 
-    // MARK: - Request Building
+    // MARK: - Request Building (delegates to RequestBuilder)
 
-    func buildURLRequest(for request: HTTPRequest, with variables: [String: String]? = nil) throws -> URLRequest {
+    func buildURLRequest(
+        for request: HTTPRequest,
+        with variables: [String: String]? = nil,
+        urlOverride: String? = nil,
+        bodyOverride: String?? = nil
+    ) throws -> URLRequest {
         let vars = variables ?? getActiveEnvironmentVariables()
-
-        let interpolatedURL = try interpolator.interpolate(
-            request.urlTemplate,
-            with: vars
+        return try requestBuilder.buildURLRequest(
+            for: request,
+            with: vars,
+            urlOverride: urlOverride,
+            bodyOverride: bodyOverride
         )
-
-        var urlComponents = URLComponents(string: interpolatedURL)
-
-        let queryParams = [KeyValuePair].decode(from: request.queryParamsData)
-        var queryItems = urlComponents?.queryItems ?? []
-
-        for param in queryParams where param.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(param.key, with: vars)
-            let interpolatedValue = try interpolator.interpolate(param.value, with: vars)
-            queryItems.append(URLQueryItem(name: interpolatedKey, value: interpolatedValue))
-        }
-
-        let authConfig = request.authConfig
-        if authConfig.type == .apiKey,
-           authConfig.apiKeyLocation == .queryParam,
-           let name = authConfig.apiKeyName,
-           let value = authConfig.apiKeyValue {
-            queryItems.append(URLQueryItem(name: name, value: value))
-        }
-
-        if !queryItems.isEmpty {
-            urlComponents?.queryItems = queryItems
-        }
-
-        guard let url = urlComponents?.url else {
-            throw HTTPClientError.invalidURL
-        }
-
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = request.method.rawValue
-        urlRequest.timeoutInterval = 30
-
-        let headers = [KeyValuePair].decode(from: request.headersData)
-        for header in headers where header.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(header.key, with: vars)
-            let interpolatedValue = try interpolator.interpolate(header.value, with: vars)
-            urlRequest.setValue(interpolatedValue, forHTTPHeaderField: interpolatedKey)
-        }
-
-        if let bodyContent = request.bodyContent, !bodyContent.isEmpty {
-            let interpolatedBody = try interpolator.interpolate(bodyContent, with: vars)
-            switch request.bodyType {
-            case .json, .raw, .xml:
-                urlRequest.httpBody = interpolatedBody.data(using: .utf8)
-            case .urlEncoded:
-                urlRequest.httpBody = interpolatedBody.data(using: .utf8)
-            case .formData, .none:
-                break
-            }
-
-            if let contentType = request.bodyType.contentType {
-                urlRequest.setValue(contentType, forHTTPHeaderField: "Content-Type")
-            }
-        }
-
-        applyAuth(&urlRequest, authConfig: authConfig)
-
-        return urlRequest
     }
 
-    // MARK: - Environment Variables
+    // MARK: - Environment Variables (delegates to RequestBuilder)
 
     func getActiveEnvironmentVariables() -> [String: String] {
-        var variables: [String: String] = [:]
-
-        let descriptor = FetchDescriptor<APIEnvironment>(
-            predicate: #Predicate { $0.isActive }
-        )
-
-        guard let activeEnv = try? modelContext.fetch(descriptor).first else {
-            return variables
-        }
-
-        for variable in activeEnv.variables where variable.isEnabled {
-            variables[variable.key] = variable.secureValue
-        }
-
-        return variables
+        requestBuilder.getActiveEnvironmentVariables(from: modelContext)
     }
     
     private func persistEnvironmentChanges(_ changes: [String: String]) {
         let descriptor = FetchDescriptor<APIEnvironment>(
             predicate: #Predicate { $0.isActive }
         )
-        
-        guard let activeEnv = try? modelContext.fetch(descriptor).first else {
-            return
-        }
-        
-        for (key, value) in changes {
-            if let existingVar = activeEnv.variables.first(where: { $0.key == key }) {
-                existingVar.value = value
-                if existingVar.isSecret {
-                    existingVar.secureValue = value
-                }
-            } else {
-                let newVar = Variable(key: key, value: value)
-                newVar.environment = activeEnv
-                modelContext.insert(newVar)
+
+        do {
+            guard let activeEnv = try modelContext.fetch(descriptor).first else {
+                return
             }
+
+            for (key, value) in changes {
+                if let existingVar = activeEnv.variables.first(where: { $0.key == key }) {
+                    existingVar.value = value
+                    if existingVar.isSecret {
+                        existingVar.secureValue = value
+                    }
+                } else {
+                    let newVar = Variable(key: key, value: value)
+                    newVar.environment = activeEnv
+                    modelContext.insert(newVar)
+                }
+            }
+
+            try modelContext.save()
+        } catch {
+            print("[PostKit] Failed to save environment changes: \(error)")
         }
-        
-        try? modelContext.save()
     }
 
-    // MARK: - Auth
+    // MARK: - Auth (delegates to RequestBuilder)
 
     func applyAuth(_ urlRequest: inout URLRequest, authConfig: AuthConfig) {
-        switch authConfig.type {
-        case .bearer:
-            if let token = authConfig.token {
-                urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            }
-        case .basic:
-            if let username = authConfig.username,
-               let password = authConfig.password {
-                let credentials = Data("\(username):\(password)".utf8).base64EncodedString()
-                urlRequest.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
-            }
-        case .apiKey:
-            if let name = authConfig.apiKeyName,
-               let value = authConfig.apiKeyValue {
-                if authConfig.apiKeyLocation == .header {
-                    urlRequest.setValue(value, forHTTPHeaderField: name)
-                }
-            }
-        case .none:
-            break
-        }
+        requestBuilder.applyAuth(&urlRequest, authConfig: authConfig)
     }
 
     // MARK: - History
