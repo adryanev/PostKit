@@ -18,6 +18,7 @@ final class RequestViewModel {
     var consoleOutput: [String] = []
     private(set) var currentTaskID: UUID?
     @ObservationIgnored private(set) var currentTask: Task<Void, Never>?
+    private var pendingEnvironmentChanges: [String: String] = [:]
 
     // MARK: - Dependencies
 
@@ -62,7 +63,7 @@ final class RequestViewModel {
         currentTask = Task { @MainActor in
             do {
                 var variables = self.getActiveEnvironmentVariables()
-                var modifiedRequest = request
+                let modifiedRequest = request
                 
                 // Execute pre-request script
                 if let preScript = request.preRequestScript, !preScript.isEmpty {
@@ -79,6 +80,7 @@ final class RequestViewModel {
                     )
                     self.consoleOutput.append(contentsOf: preResult.consoleOutput)
                     variables.merge(preResult.environmentChanges) { _, new in new }
+                    self.pendingEnvironmentChanges.merge(preResult.environmentChanges) { _, new in new }
                     
                     // Apply modifications
                     if let modifiedURL = preResult.modifiedURL {
@@ -112,6 +114,13 @@ final class RequestViewModel {
                         environment: variables
                     )
                     self.consoleOutput.append(contentsOf: postResult.consoleOutput)
+                    self.pendingEnvironmentChanges.merge(postResult.environmentChanges) { _, new in new }
+                }
+                
+                // Persist environment changes to SwiftData
+                if !self.pendingEnvironmentChanges.isEmpty {
+                    self.persistEnvironmentChanges(self.pendingEnvironmentChanges)
+                    self.pendingEnvironmentChanges = [:]
                 }
 
                 self.response = httpResponse
@@ -231,6 +240,31 @@ final class RequestViewModel {
         }
 
         return variables
+    }
+    
+    private func persistEnvironmentChanges(_ changes: [String: String]) {
+        let descriptor = FetchDescriptor<APIEnvironment>(
+            predicate: #Predicate { $0.isActive }
+        )
+        
+        guard let activeEnv = try? modelContext.fetch(descriptor).first else {
+            return
+        }
+        
+        for (key, value) in changes {
+            if let existingVar = activeEnv.variables.first(where: { $0.key == key }) {
+                existingVar.value = value
+                if existingVar.isSecret {
+                    existingVar.secureValue = value
+                }
+            } else {
+                let newVar = Variable(key: key, value: value)
+                newVar.environment = activeEnv
+                modelContext.insert(newVar)
+            }
+        }
+        
+        try? modelContext.save()
     }
 
     // MARK: - Auth

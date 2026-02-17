@@ -1169,7 +1169,7 @@ struct SpotlightIndexerTests {
 #### Scripts (Phase 3)
 - [x] Pre-request script modifies headers, URL, and body before send
 - [x] Post-request script reads response and sets environment variables
-- [ ] `pk.environment.set()` persists to SwiftData
+- [x] `pk.environment.set()` persists to SwiftData
 - [x] `pm.*` calls auto-map to `pk.*` equivalents
 - [x] Script errors show line number and message in Console tab
 - [x] Scripts timeout after 5 seconds with clear error
@@ -1185,20 +1185,20 @@ struct SpotlightIndexerTests {
 - [ ] Secret variables show "not set on this device" warning on new devices
 
 #### Menu Bar (Phase 5)
-- [ ] Right-click request → "Pin to Menu Bar" toggles `isPinned`
-- [ ] Menu bar shows pinned requests with method + name
-- [ ] Clicking pinned request sends immediately, shows status + response time
-- [ ] "Open PostKit" opens main app window
-- [ ] Requests with scripts show indicator, not executed from menu bar
-- [ ] Menu bar sends create `HistoryEntry` records
-- [ ] Max 20 pinned requests displayed
+- [x] Right-click request → "Pin to Menu Bar" toggles `isPinned`
+- [x] Menu bar shows pinned requests with method + name
+- [x] Clicking pinned request sends immediately, shows status + response time
+- [x] "Open PostKit" opens main app window
+- [x] Requests with scripts show indicator, not executed from menu bar
+- [x] Menu bar sends create `HistoryEntry` records
+- [x] Max 20 pinned requests displayed
 
 #### Spotlight (Phase 6)
-- [ ] Requests appear in Spotlight search by name, URL, method, or collection
-- [ ] Clicking Spotlight result opens PostKit and navigates to request
-- [ ] Deleted requests removed from Spotlight index
-- [ ] Cascade-deleted requests batch-removed from index
-- [ ] Full re-index available on app launch
+- [x] Requests appear in Spotlight search by name, URL, method, or collection
+- [x] Clicking Spotlight result opens PostKit and navigates to request
+- [x] Deleted requests removed from Spotlight index
+- [x] Cascade-deleted requests batch-removed from index
+- [x] Full re-index available on app launch
 
 ### Non-Functional Requirements
 

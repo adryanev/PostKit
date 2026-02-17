@@ -13,7 +13,8 @@ struct CollectionRow: View {
     @State private var newName = ""
     @State private var exportError: String?
 
-    @Injected(\.fileExporter) private var fileExporter
+    @ObservationIgnored @Injected(\.fileExporter) private var fileExporter
+    @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -142,6 +143,9 @@ struct CollectionRow: View {
 
     private func deleteRequest(_ request: HTTPRequest) {
         AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        Task {
+            await spotlightIndexer.deindexRequest(id: request.id)
+        }
         if selectedRequest?.id == request.id {
             selectedRequest = nil
         }
@@ -149,6 +153,7 @@ struct CollectionRow: View {
     }
 
     private func deleteCollection(_ collection: RequestCollection) {
+        let requestIds = collection.requests.map(\.id)
         for request in collection.requests {
             AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
         }
@@ -156,6 +161,9 @@ struct CollectionRow: View {
             for variable in env.variables {
                 variable.deleteSecureValue()
             }
+        }
+        Task {
+            await spotlightIndexer.deindexRequests(ids: requestIds)
         }
         modelContext.delete(collection)
     }
@@ -170,6 +178,8 @@ struct FolderRow: View {
     @State private var renamingRequest: HTTPRequest?
     @State private var isExpanded = true
     @State private var newName = ""
+    
+    @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
@@ -256,6 +266,9 @@ struct FolderRow: View {
 
     private func deleteRequest(_ request: HTTPRequest) {
         AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        Task {
+            await spotlightIndexer.deindexRequest(id: request.id)
+        }
         if selectedRequest?.id == request.id {
             selectedRequest = nil
         }
@@ -263,8 +276,12 @@ struct FolderRow: View {
     }
 
     private func deleteFolder(_ folder: Folder) {
+        let requestIds = folder.requests.map(\.id)
         for request in folder.requests {
             AuthConfig.deleteSecrets(forRequestID: request.id.uuidString)
+        }
+        Task {
+            await spotlightIndexer.deindexRequests(ids: requestIds)
         }
         modelContext.delete(folder)
     }

@@ -28,4 +28,8 @@ extension Container {
     nonisolated var scriptEngine: Factory<ScriptEngineProtocol> {
         self { JavaScriptEngine() }
     }
+    
+    nonisolated var spotlightIndexer: Factory<SpotlightIndexerProtocol> {
+        self { SpotlightIndexer.shared }.singleton
+    }
 }

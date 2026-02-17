@@ -1,15 +1,20 @@
 import SwiftUI
 import SwiftData
+import FactoryKit
+import CoreSpotlight
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var selectedRequest: HTTPRequest?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
+    @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
 
     enum Pane: Hashable {
         case sidebar, detail
     }
+    
+    @Query private var allRequests: [HTTPRequest]
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -46,6 +51,26 @@ struct ContentView: View {
             if let old = oldValue {
                 old.updatedAt = Date()
             }
+            if let new = newValue {
+                Task {
+                    await spotlightIndexer.indexRequest(
+                        new,
+                        collectionName: new.collection?.name,
+                        folderName: new.folder?.name
+                    )
+                }
+            }
+        }
+        .onOpenURL { url in
+            handleDeepLink(url)
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
+            handleSpotlightActivity(userActivity)
+        }
+        .onAppear {
+            Task {
+                await spotlightIndexer.reindexAll(requests: allRequests)
+            }
         }
     }
 
@@ -53,6 +78,27 @@ struct ContentView: View {
         switch focusedPane {
         case .sidebar: focusedPane = .detail
         case .detail, .none: focusedPane = .sidebar
+        }
+    }
+    
+    private func handleDeepLink(_ url: URL) {
+        guard url.scheme == "postkit", url.host == "request" else { return }
+        guard let requestIdString = url.path.split(separator: "/").last,
+              let requestId = UUID(uuidString: String(requestIdString)) else { return }
+        
+        if let request = allRequests.first(where: { $0.id == requestId }) {
+            selectedRequest = request
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+    
+    private func handleSpotlightActivity(_ userActivity: NSUserActivity) {
+        guard let identifierString = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+              let identifier = UUID(uuidString: identifierString) else { return }
+        
+        if let request = allRequests.first(where: { $0.id == identifier }) {
+            selectedRequest = request
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 }
