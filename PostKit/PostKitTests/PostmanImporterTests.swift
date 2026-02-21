@@ -106,7 +106,7 @@ struct PostmanImporterTests {
     }
     
     @MainActor
-    @Test func formDataMultiplePairsWithNewlineSeparator() throws {
+    @Test func formDataMultiplePairsWithAmpersandSeparator() throws {
         let formData: [[String: Any]] = [
             ["key": "username", "value": "john", "type": "text"],
             ["key": "email", "value": "john@example.com", "type": "text"]
@@ -122,10 +122,10 @@ struct PostmanImporterTests {
         let request = collection.requests.first!
         
         #expect(request.bodyType == .formData)
-        let lines = request.bodyContent?.components(separatedBy: "\n") ?? []
-        #expect(lines.count == 2)
-        #expect(lines.contains("username=john"))
-        #expect(lines.contains("email=john%40example.com"))
+        let pairs = request.bodyContent?.components(separatedBy: "&") ?? []
+        #expect(pairs.count == 2)
+        #expect(pairs.contains("username=john"))
+        #expect(pairs.contains("email=john%40example.com"))
     }
     
     @MainActor
