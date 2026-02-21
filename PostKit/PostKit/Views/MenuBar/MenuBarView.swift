@@ -72,49 +72,60 @@ struct MenuBarView: View {
             return
         }
 
-        await MainActor.run {
-            _ = sendingRequestIDs.insert(request.id)
+        let (urlRequest, requestID, requestMethod, requestURLTemplate) = await MainActor.run {
+            sendingRequestIDs.insert(request.id)
+            let variables = requestBuilder.getActiveEnvironmentVariables(from: modelContext)
+            let urlRequest = try? requestBuilder.buildURLRequest(for: request, with: variables)
+            return (urlRequest, request.id, request.method, request.urlTemplate)
+        }
+
+        guard let urlRequest = urlRequest else {
+            await MainActor.run {
+                sendingRequestIDs.remove(request.id)
+            }
+            return
         }
 
         do {
-            let variables = requestBuilder.getActiveEnvironmentVariables(from: modelContext)
-            let urlRequest = try requestBuilder.buildURLRequest(for: request, with: variables)
             let response = try await httpClient.execute(urlRequest, taskID: UUID())
 
-            // Clean up temp file for large responses that were spilled to disk
             if let fileURL = response.bodyFileURL {
                 try? FileManager.default.removeItem(at: fileURL)
             }
 
             await MainActor.run {
-                results[request.id] = MenuBarResult(
+                results[requestID] = MenuBarResult(
                     statusCode: response.statusCode,
                     duration: response.duration,
                     timestamp: Date(),
                     error: nil
                 )
-                sendingRequestIDs.remove(request.id)
+                sendingRequestIDs.remove(requestID)
 
                 let entry = HistoryEntry(
-                    method: request.method,
-                    url: request.urlTemplate,
+                    method: requestMethod,
+                    url: requestURLTemplate,
                     statusCode: response.statusCode,
                     responseTime: response.duration,
                     responseSize: response.size
                 )
                 entry.request = request
                 modelContext.insert(entry)
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    print("[MenuBar] Failed to save history: \(error)")
+                }
             }
         } catch {
             await MainActor.run {
-                results[request.id] = MenuBarResult(
+                results[requestID] = MenuBarResult(
                     statusCode: 0,
                     duration: 0,
                     timestamp: Date(),
                     error: error
                 )
-                sendingRequestIDs.remove(request.id)
+                sendingRequestIDs.remove(requestID)
             }
         }
     }

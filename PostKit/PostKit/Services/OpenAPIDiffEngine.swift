@@ -48,10 +48,10 @@ final class OpenAPIDiffEngine: Sendable {
         var changedEndpoints: [EndpointChange] = []
         var unchangedEndpoints: [EndpointSnapshot] = []
         
-        var unmatchedSnapshots = Dictionary(uniqueKeysWithValues: existingSnapshots.map { ($0.id, $0) })
+        var unmatchedSnapshots = Dictionary(uniqueKeysWithValues: existingSnapshots.map { (normalizedMatchKey($0.id), $0) })
         
         for endpoint in selectedEndpoints {
-            let matchKey = "\(endpoint.method.rawValue) \(endpoint.path)"
+            let matchKey = normalizedMatchKey("\(endpoint.method.rawValue) \(endpoint.path)")
             
             if let existingSnapshot = unmatchedSnapshots.removeValue(forKey: matchKey) {
                 let incomingSnapshot = createSnapshotFromEndpoint(
@@ -190,5 +190,11 @@ final class OpenAPIDiffEngine: Sendable {
         case .unsupported:
             return nil
         }
+    }
+    
+    /// Normalizes a string for case-insensitive matching with proper Unicode handling.
+    /// Uses folding with case and diacritic insensitivity for consistent comparisons.
+    private func normalizedMatchKey(_ string: String) -> String {
+        string.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US"))
     }
 }

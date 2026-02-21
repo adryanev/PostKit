@@ -257,6 +257,26 @@ final class PostmanImporter {
         return folder
     }
     
+    // MARK: - Private Helpers
+    
+    /// Encodes form key-value pairs with URL encoding, skipping entries that fail encoding.
+    /// - Parameters:
+    ///   - pairs: Array of (key, value) tuples to encode
+    ///   - separator: String to use between encoded pairs (typically "&")
+    /// - Returns: Encoded string or nil if all pairs were skipped
+    private func encodeFormPairs(_ pairs: [(key: String, value: String?)], separator: String) -> String? {
+        let encoded = pairs.compactMap { item -> String? in
+            guard !item.key.isEmpty else { return nil }
+            guard let encodedKey = item.key.addingPercentEncoding(withAllowedCharacters: Self.formURLEncodedAllowed),
+                  let encodedValue = (item.value ?? "").addingPercentEncoding(withAllowedCharacters: Self.formURLEncodedAllowed) else {
+                print("[PostmanImporter] Warning: Skipping form field with invalid encoding: \(item.key)")
+                return nil
+            }
+            return "\(encodedKey)=\(encodedValue)"
+        }
+        return encoded.isEmpty ? nil : encoded.joined(separator: separator)
+    }
+    
     private func createHTTPRequest(
         from item: PostmanItem,
         request: PostmanRequest,
@@ -300,22 +320,14 @@ final class PostmanImporter {
             case "urlencoded":
                 httpRequest.bodyType = .urlEncoded
                 if let encoded = body.urlencoded {
-                    let pairs = encoded.compactMap { kv -> String? in
-                        guard !kv.key.isEmpty else { return nil }
-                        let encodedKey = kv.key.addingPercentEncoding(withAllowedCharacters: Self.formURLEncodedAllowed) ?? kv.key
-                        let encodedValue = (kv.value ?? "").addingPercentEncoding(withAllowedCharacters: Self.formURLEncodedAllowed) ?? (kv.value ?? "")
-                        return "\(encodedKey)=\(encodedValue)"
-                    }
-                    httpRequest.bodyContent = pairs.joined(separator: "&")
+                    let pairs = encoded.map { ($0.key, $0.value) }
+                    httpRequest.bodyContent = encodeFormPairs(pairs, separator: "&")
                 }
             case "formdata":
                 httpRequest.bodyType = .formData
                 if let formData = body.formData {
-                    let pairs = formData.compactMap { item -> String? in
-                        guard !item.key.isEmpty else { return nil }
-                        return "\(item.key)=\(item.value ?? "")"
-                    }
-                    httpRequest.bodyContent = pairs.joined(separator: "\n")
+                    let pairs = formData.map { ($0.key, $0.value) }
+                    httpRequest.bodyContent = encodeFormPairs(pairs, separator: "&")
                 }
             case "graphql":
                 httpRequest.bodyType = .json
