@@ -127,7 +127,15 @@ struct PostmanEnvironment: Sendable {
 final class PostmanParser: PostmanParserProtocol, Sendable {
     
     func parse(_ data: Data) throws -> PostmanCollection {
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        let json: [String: Any]
+        do {
+            guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw PostmanParserError.invalidFormat
+            }
+            json = jsonObject
+        } catch let error as PostmanParserError {
+            throw error
+        } catch {
             throw PostmanParserError.invalidFormat
         }
         
