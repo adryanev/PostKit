@@ -48,7 +48,7 @@ final class OpenAPIDiffEngine: Sendable {
         var changedEndpoints: [EndpointChange] = []
         var unchangedEndpoints: [EndpointSnapshot] = []
         
-        var unmatchedSnapshots = Dictionary(uniqueKeysWithValues: existingSnapshots.map { (normalizedMatchKey($0.id), $0) })
+        var unmatchedSnapshots = Dictionary(existingSnapshots.map { (normalizedMatchKey($0.id), $0) }, uniquingKeysWith: { first, _ in first })
         
         for endpoint in selectedEndpoints {
             let matchKey = normalizedMatchKey("\(endpoint.method.rawValue) \(endpoint.path)")

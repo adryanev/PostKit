@@ -1,7 +1,10 @@
 import Testing
 import Foundation
+import FactoryKit
+import FactoryTesting
 @testable import PostKit
 
+@Suite(.container)
 struct KeyValuePairTests {
     @Test func encodeDecodeRoundTrip() throws {
         let pairs = [

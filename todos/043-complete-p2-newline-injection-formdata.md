@@ -28,7 +28,7 @@ httpRequest.bodyContent = pairs.joined(separator: "\n")
 ```
 
 **Attack vector:**
-```
+```text
 key1=value1\ninjected
 key2=value2
 ```
@@ -101,7 +101,7 @@ return "\(encodedKey)=\(escapedValue)"
 
 ## Recommended Action
 
-To be filled during triage.
+**Chosen:** Option 3 – use `&` separator (consistent with urlencoded, handled by centralized `encodeFormPairs` helper). **Rationale:** Eliminates ambiguous `\n` separator; existing URL-encoding already handles special characters in keys and values.
 
 ## Technical Details
 
@@ -112,10 +112,10 @@ To be filled during triage.
 
 ## Acceptance Criteria
 
-- [ ] Newlines in values handled safely
-- [ ] No format corruption from special characters
+- [x] Newlines in values handled safely
+- [x] No format corruption from special characters
 - [ ] Round-trip import/export preserves data
-- [ ] Tests for values with newlines
+- [x] Tests for values with newlines
 
 ## Work Log
 

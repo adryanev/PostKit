@@ -283,7 +283,7 @@ struct SyntaxHighlightingTests {
         #expect(!result.contains("\n  "))
     }
     
-    @Test func computeDisplayStringPreservesJsonOrder() {
+    @Test func computeDisplayStringContainsAllJsonKeys() {
         let data = #"{"z":1,"a":2,"m":3}"#.data(using: .utf8)!
         let result = computeDisplayString(for: data, contentType: "application/json", showRaw: false)
         #expect(result.contains("z"))

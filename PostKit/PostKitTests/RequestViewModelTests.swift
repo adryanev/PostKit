@@ -44,21 +44,20 @@ struct RequestViewModelTests {
         #expect(viewModel.isSending == false)
     }
     
-    @Test func viewModelInitializesWithModelContext() {
+    @Test func viewModelInitializesWithModelContext() throws {
         let schema = Schema([RequestCollection.self, Folder.self, HTTPRequest.self, APIEnvironment.self, Variable.self, HistoryEntry.self])
-        let container = try? ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
-        #expect(container != nil)
-        
-        let viewModel = RequestViewModel(modelContext: container!.mainContext)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+
+        let viewModel = RequestViewModel(modelContext: container.mainContext)
         #expect(viewModel.response == nil)
         #expect(viewModel.isSending == false)
         #expect(viewModel.error == nil)
     }
-    
-    @Test func activeTabDefaultsToBody() {
+
+    @Test func activeTabDefaultsToBody() throws {
         let schema = Schema([RequestCollection.self, Folder.self, HTTPRequest.self, APIEnvironment.self, Variable.self, HistoryEntry.self])
-        let container = try? ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
-        let viewModel = RequestViewModel(modelContext: container!.mainContext)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let viewModel = RequestViewModel(modelContext: container.mainContext)
         #expect(viewModel.activeTab == .body)
     }
     
@@ -182,6 +181,9 @@ struct RequestViewModelTests {
         viewModel.sendRequest(for: request1)
         let firstTaskID = viewModel.currentTaskID
 
+        // Yield to let the first task start executing before cancelling it
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
         viewModel.sendRequest(for: request2)
         let secondTaskID = viewModel.currentTaskID
 
@@ -193,6 +195,8 @@ struct RequestViewModelTests {
         let cancelledIDs = await mockClient.cancelledTaskIDs
         let callCount = await mockClient.executeCallCount
         #expect(callCount >= 1)
+        // Note: sendRequest doesn't call httpClient.cancel() — it abandons the old task
+        // via a guard on currentTaskID. Only explicit cancelRequest() tracks cancellation.
         if !cancelledIDs.isEmpty {
             #expect(cancelledIDs.contains(firstTaskID!))
         }

@@ -1,9 +1,14 @@
 import Testing
 import Foundation
+import FactoryKit
+import FactoryTesting
 @testable import PostKit
 
+@Suite(.container)
 struct OpenAPIParserTests {
     let parser = OpenAPIParser()
+
+    // MARK: - Basic Parsing Tests
 
     @Test func parseMinimalSpec() throws {
         let spec: [String: Any] = [
@@ -38,6 +43,8 @@ struct OpenAPIParserTests {
         #expect(servers[0] == "https://api.prod.example.com")
         #expect(servers[1] == "https://api.staging.example.com")
     }
+
+    // MARK: - Endpoint Parsing Tests
 
     @Test func parseEndpointWithOperationId() throws {
         let spec: [String: Any] = [
@@ -133,6 +140,8 @@ struct OpenAPIParserTests {
         #expect(info.version == "3.2.1")
         #expect(info.description == "A test API for unit testing")
     }
+
+    // MARK: - Error Handling Tests
 
     @Test func parseInvalidFormatThrows() throws {
         let data = "not json at all".data(using: .utf8)!

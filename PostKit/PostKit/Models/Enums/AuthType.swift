@@ -6,7 +6,13 @@ enum AuthType: String, Codable, CaseIterable, Sendable {
     case bearer = "bearer"
     case basic = "basic"
     case apiKey = "api-key"
-    
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = AuthType(rawValue: rawValue) ?? .none
+    }
+
     var displayName: String {
         switch self {
         case .none: return "No Auth"

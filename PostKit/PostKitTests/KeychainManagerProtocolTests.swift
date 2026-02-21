@@ -1,8 +1,13 @@
 import Testing
+import FactoryKit
+import FactoryTesting
 @testable import PostKit
 
+@Suite(.container)
 struct KeychainManagerProtocolTests {
-    
+
+    // MARK: - Single Operations
+
     @Test func mockKeychainStoreAndRetrieve() throws {
         let mock = MockKeychainManager()
         
@@ -24,7 +29,9 @@ struct KeychainManagerProtocolTests {
         #expect(retrieved == nil)
         #expect(mock.deleteCallCount == 1)
     }
-    
+
+    // MARK: - Batch Operations
+
     @Test func mockKeychainStoreSecretsBatch() throws {
         let mock = MockKeychainManager()
         
@@ -46,7 +53,9 @@ struct KeychainManagerProtocolTests {
         #expect(secrets["key2"] == "value2")
         #expect(secrets["nonexistent"] == nil)
     }
-    
+
+    // MARK: - Error Handling
+
     @Test func mockKeychainThrowsWhenConfigured() {
         let mock = MockKeychainManager(shouldThrow: true)
         

@@ -320,11 +320,14 @@ final class PostmanImporter {
             case "urlencoded":
                 httpRequest.bodyType = .urlEncoded
                 if let encoded = body.urlencoded {
-                    let pairs = encoded.map { ($0.key, $0.value) }
+                    let pairs = encoded.compactMap { kv -> (key: String, value: String?)? in
+                        guard kv.enabled != false else { return nil }
+                        return (kv.key, kv.value)
+                    }
                     httpRequest.bodyContent = encodeFormPairs(pairs, separator: "&")
                 }
             case "formdata":
-                httpRequest.bodyType = .formData
+                httpRequest.bodyType = .urlEncoded
                 if let formData = body.formData {
                     let pairs = formData.map { ($0.key, $0.value) }
                     httpRequest.bodyContent = encodeFormPairs(pairs, separator: "&")

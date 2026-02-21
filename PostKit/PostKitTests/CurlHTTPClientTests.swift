@@ -56,7 +56,26 @@ struct CurlHTTPClientTests {
         #expect(timing.tcpConnection == 0)
         #expect(timing.tlsHandshake == 0)
     }
-    
+
+    @Test func timingDeltaClampingWithNegativeValues() {
+        let timing = TimingBreakdown(
+            dnsLookup: -0.05,
+            tcpConnection: -0.01,
+            tlsHandshake: -0.03,
+            transferStart: -0.02,
+            download: -0.10,
+            total: -0.21,
+            redirectTime: -0.04
+        )
+        #expect(timing.dnsLookup == 0)
+        #expect(timing.tcpConnection == 0)
+        #expect(timing.tlsHandshake == 0)
+        #expect(timing.transferStart == 0)
+        #expect(timing.download == 0)
+        #expect(timing.total == 0)
+        #expect(timing.redirectTime == 0)
+    }
+
     @Test func sanitizeForCurlStripsCRLF() {
         let input = "hello\r\nworld"
         let result = CurlHTTPClient.sanitizeForCurl(input)

@@ -1,7 +1,10 @@
 import Testing
 import Foundation
+import FactoryKit
+import FactoryTesting
 @testable import PostKit
 
+@Suite(.container)
 struct JavaScriptEngineTests {
     let engine = JavaScriptEngine()
     
@@ -17,7 +20,8 @@ struct JavaScriptEngineTests {
     @Test func preRequestEnvironmentGet() async throws {
         let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
         let result = try await engine.executePreRequest(script: "console.log(pk.environment.get('token'));", request: request, environment: ["token": "abc123"])
-        #expect(result.consoleOutput[0] == "abc123")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "abc123")
     }
     
     @Test func preRequestEnvironmentSet() async throws {
@@ -29,19 +33,22 @@ struct JavaScriptEngineTests {
     @Test func preRequestVariablesAlias() async throws {
         let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
         let result = try await engine.executePreRequest(script: "console.log(pk.variables.get('myVar'));", request: request, environment: ["myVar": "test"])
-        #expect(result.consoleOutput[0] == "test")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "test")
     }
     
     @Test func preRequestAccessRequestData() async throws {
         let request = ScriptRequest(method: "POST", url: "https://api.example.com/users", headers: ["Content-Type": "application/json"], body: "{\"name\":\"test\"}")
         let result = try await engine.executePreRequest(script: "console.log(pk.request.method + ' ' + pk.request.url);", request: request, environment: [:])
-        #expect(result.consoleOutput[0] == "POST https://api.example.com/users")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "POST https://api.example.com/users")
     }
     
     @Test func preRequestAccessHeaders() async throws {
         let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: ["Authorization": "Bearer token"], body: nil)
         let result = try await engine.executePreRequest(script: "console.log(pk.request.headers.get('Authorization'));", request: request, environment: [:])
-        #expect(result.consoleOutput[0] == "Bearer token")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "Bearer token")
     }
     
     @Test func preRequestModifyURL() async throws {
@@ -59,7 +66,8 @@ struct JavaScriptEngineTests {
     @Test func preRequestPMShim() async throws {
         let request = ScriptRequest(method: "GET", url: "https://api.example.com", headers: [:], body: nil)
         let result = try await engine.executePreRequest(script: "console.log(pm.environment.get('key'));", request: request, environment: ["key": "shim-value"])
-        #expect(result.consoleOutput[0] == "shim-value")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "shim-value")
     }
     
     @Test func preRequestScriptError() async throws {
@@ -81,31 +89,38 @@ struct JavaScriptEngineTests {
     @Test func postRequestAccessResponseCode() async throws {
         let response = ScriptResponse(statusCode: 201, headers: [:], body: nil, duration: 0.5)
         let result = try await engine.executePostRequest(script: "console.log(pk.response.code);", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "201")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "201")
     }
     
+    // responseTime contract: the engine multiplies duration (seconds) by 1000 and
+    // truncates to Int, so 0.234s becomes "234" ms.
     @Test func postRequestAccessResponseTime() async throws {
         let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.234)
         let result = try await engine.executePostRequest(script: "console.log(pk.response.responseTime);", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "234")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "234")
     }
     
     @Test func postRequestAccessResponseBodyText() async throws {
         let response = ScriptResponse(statusCode: 200, headers: [:], body: "{\"name\":\"John\"}", duration: 0.5)
         let result = try await engine.executePostRequest(script: "console.log(pk.response.text());", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "{\"name\":\"John\"}")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "{\"name\":\"John\"}")
     }
     
     @Test func postRequestAccessResponseBodyJSON() async throws {
         let response = ScriptResponse(statusCode: 200, headers: [:], body: "{\"name\":\"Jane\",\"age\":30}", duration: 0.5)
         let result = try await engine.executePostRequest(script: "console.log(pk.response.json().name);", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "Jane")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "Jane")
     }
     
     @Test func postRequestAccessResponseHeaders() async throws {
         let response = ScriptResponse(statusCode: 200, headers: ["Content-Type": "application/json"], body: nil, duration: 0.5)
         let result = try await engine.executePostRequest(script: "console.log(pk.response.headers.get('Content-Type'));", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "application/json")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "application/json")
     }
     
     @Test func postRequestEnvironmentSet() async throws {
@@ -117,7 +132,8 @@ struct JavaScriptEngineTests {
     @Test func postRequestPMShim() async throws {
         let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.5)
         let result = try await engine.executePostRequest(script: "console.log(pm.response.code);", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "200")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "200")
     }
     
     @Test func postRequestScriptError() async throws {
@@ -139,7 +155,8 @@ struct JavaScriptEngineTests {
     @Test func nullJSONResponse() async throws {
         let response = ScriptResponse(statusCode: 200, headers: [:], body: nil, duration: 0.5)
         let result = try await engine.executePostRequest(script: "console.log(pk.response.json());", response: response, environment: [:])
-        #expect(result.consoleOutput[0] == "undefined")
+        #expect(result.consoleOutput.count == 1)
+        #expect(result.consoleOutput.first == "undefined")
     }
     
     @Test func multipleConsoleLogs() async throws {
@@ -155,7 +172,8 @@ struct JavaScriptEngineTests {
             request: request,
             environment: ["existingKey": "existingValue"]
         )
-        #expect(result.consoleOutput[0] == "existingValue")
+        #expect(result.consoleOutput.count >= 1)
+        #expect(result.consoleOutput.first == "existingValue")
         #expect(result.environmentChanges["newKey"] == "newValue")
     }
 }

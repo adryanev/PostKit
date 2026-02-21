@@ -16,6 +16,24 @@ struct TimingBreakdown: Sendable, Codable {
     let download: TimeInterval
     let total: TimeInterval
     let redirectTime: TimeInterval
+
+    init(
+        dnsLookup: TimeInterval,
+        tcpConnection: TimeInterval,
+        tlsHandshake: TimeInterval,
+        transferStart: TimeInterval,
+        download: TimeInterval,
+        total: TimeInterval,
+        redirectTime: TimeInterval
+    ) {
+        self.dnsLookup = max(0, dnsLookup)
+        self.tcpConnection = max(0, tcpConnection)
+        self.tlsHandshake = max(0, tlsHandshake)
+        self.transferStart = max(0, transferStart)
+        self.download = max(0, download)
+        self.total = max(0, total)
+        self.redirectTime = max(0, redirectTime)
+    }
 }
 
 struct HTTPResponse: Sendable {

@@ -1,10 +1,15 @@
 import Testing
 import Foundation
+import FactoryKit
+import FactoryTesting
 @testable import PostKit
 
+@Suite(.container)
 struct OpenAPIDiffEngineTests {
     let diffEngine = OpenAPIDiffEngine()
-    
+
+    // MARK: - Positive Cases
+
     @Test func diffAllNewEndpoints() throws {
         let spec = OpenAPISpec(
             info: OpenAPIInfo(title: "API", version: "1.0", description: nil),
@@ -209,7 +214,9 @@ struct OpenAPIDiffEngineTests {
         #expect(result.unchangedEndpoints.isEmpty)
     }
     
-    @Test func diffUserCreatedRequestsIgnored() throws {
+    // MARK: - Edge Cases
+
+    @Test func diffUnmatchedSnapshotsAreRemoved() throws {
         let userCreatedSnapshot = EndpointSnapshot(
             id: "GET /custom",
             requestID: nil,

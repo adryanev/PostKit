@@ -43,7 +43,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         #expect(request.bodyContent?.contains("field%3Dname=test") == true)
     }
     
@@ -62,7 +62,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         #expect(request.bodyContent?.contains("query=a%3Db%26c%3Dd") == true)
     }
     
@@ -81,7 +81,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         #expect(request.bodyContent?.contains("multi%0Aline=value") == true)
         #expect(request.bodyContent?.contains("\n") == false || request.bodyContent?.contains("%0A") == true)
     }
@@ -101,7 +101,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         #expect(request.bodyContent?.contains("message=line1%0Aline2") == true)
     }
     
@@ -121,7 +121,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         let pairs = request.bodyContent?.components(separatedBy: "&") ?? []
         #expect(pairs.count == 2)
         #expect(pairs.contains("username=john"))
@@ -144,7 +144,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         #expect(request.bodyContent == "valid=kept")
     }
     
@@ -163,7 +163,7 @@ struct PostmanImporterTests {
         let collection = try importer.importCollection(from: data, into: context)
         let request = collection.requests.first!
         
-        #expect(request.bodyType == .formData)
+        #expect(request.bodyType == .urlEncoded)
         #expect(request.bodyContent?.contains("data=hello%20world%20%26%20%3Ctest%3E") == true)
     }
 }
