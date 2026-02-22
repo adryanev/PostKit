@@ -72,9 +72,9 @@ final class RequestBuilder: Sendable {
             switch request.bodyType {
             case .json, .raw, .xml:
                 urlRequest.httpBody = interpolatedBody.data(using: .utf8)
-            case .urlEncoded:
+            case .urlEncoded, .formData:
                 urlRequest.httpBody = interpolatedBody.data(using: .utf8)
-            case .formData, .none:
+            case .none:
                 break
             }
 

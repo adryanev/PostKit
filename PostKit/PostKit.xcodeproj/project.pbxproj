@@ -10,8 +10,8 @@
 		9B4DC7282F40BAEA00EABFE5 /* FactoryKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9BFACT0022F0D8000000001 /* FactoryKit */; };
 		9B4DC7292F40BAEA00EABFE5 /* FactoryTesting in Frameworks */ = {isa = PBXBuildFile; productRef = 9BFACT0032F0D8000000001 /* FactoryTesting */; };
 		9BCURL0022F0D7000000001 /* Frameworks/curl.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9BCURL0012F0D7000000001 /* Frameworks/curl.xcframework */; };
-		9BYAMS0012F0D8000000001 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 9BYAMS0022F0D8000000001 /* Yams */; };
 		9BHIGHLITE1F40BAEA00EABFE5 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = 9BHIGHLITE22F0D8000000001 /* Highlightr */; };
+		9BYAMS0012F0D8000000001 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = 9BYAMS0022F0D8000000001 /* Yams */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -639,20 +639,20 @@
 				minimumVersion = 2.5.0;
 			};
 		};
-		9BYAMS0002F0D8000000001 /* XCRemoteSwiftPackageReference "Yams" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/jpsim/Yams.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.0.0;
-			};
-		};
 		9BHIGHLITE12F0D8000000001 /* XCRemoteSwiftPackageReference "Highlightr" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/raspu/Highlightr.git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.3.0;
+			};
+		};
+		9BYAMS0002F0D8000000001 /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -668,15 +668,15 @@
 			package = 9BFACT0012F0D8000000001 /* XCRemoteSwiftPackageReference "Factory" */;
 			productName = FactoryTesting;
 		};
-		9BYAMS0022F0D8000000001 /* Yams */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9BYAMS0002F0D8000000001 /* XCRemoteSwiftPackageReference "Yams" */;
-			productName = Yams;
-		};
 		9BHIGHLITE22F0D8000000001 /* Highlightr */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 9BHIGHLITE12F0D8000000001 /* XCRemoteSwiftPackageReference "Highlightr" */;
 			productName = Highlightr;
+		};
+		9BYAMS0022F0D8000000001 /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9BYAMS0002F0D8000000001 /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
