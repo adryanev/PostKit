@@ -99,76 +99,82 @@ struct EnvironmentEditorSheet: View {
     @State private var newEnvironmentName = ""
     
     var body: some View {
-        Group {
-            if environments.isEmpty {
-                ContentUnavailableView(
-                    "No Environments",
-                    systemImage: "globe",
-                    description: Text("Add an environment to manage variables")
-                )
-            } else {
-                HSplitView {
-                    List(selection: $selectedEnvironment) {
-                        ForEach(environments) { env in
-                            Text(env.name)
-                                .tag(env)
+        NavigationStack {
+            Group {
+                if environments.isEmpty {
+                    ContentUnavailableView(
+                        "No Environments",
+                        systemImage: "globe",
+                        description: Text("Add an environment to manage variables")
+                    )
+                } else {
+                    HSplitView {
+                        List(selection: $selectedEnvironment) {
+                            ForEach(environments) { env in
+                                Text(env.name)
+                                    .tag(env)
+                            }
+                        }
+                        .frame(minWidth: 150, maxWidth: 200)
+
+                        if let env = selectedEnvironment {
+                            EnvironmentVariablesEditor(environment: env)
+                        } else {
+                            ContentUnavailableView(
+                                "Select Environment",
+                                systemImage: "globe",
+                                description: Text("Choose an environment to edit its variables")
+                            )
                         }
                     }
-                    .frame(minWidth: 150, maxWidth: 200)
-
-                    if let env = selectedEnvironment {
-                        EnvironmentVariablesEditor(environment: env)
-                    } else {
-                        ContentUnavailableView(
-                            "Select Environment",
-                            systemImage: "globe",
-                            description: Text("Choose an environment to edit its variables")
-                        )
+                }
+            }
+            .navigationTitle("Environments")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
                     }
                 }
-            }
-        }
-        .frame(width: 600, height: 400)
-        .navigationTitle("Environments")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Done") {
-                    dismiss()
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.defaultAction)
                 }
-                .keyboardShortcut(.defaultAction)
-            }
-            
-            ToolbarItem {
-                Button(action: { showingAddEnvironment = true }) {
-                    Label("Add Environment", systemImage: "plus")
+                
+                ToolbarItem {
+                    Button(action: { showingAddEnvironment = true }) {
+                        Label("Add Environment", systemImage: "plus")
+                    }
                 }
-            }
-            
-            ToolbarItem {
-                if selectedEnvironment != nil {
-                    Button(role: .destructive) {
-                        if let env = selectedEnvironment {
+                
+                ToolbarItem {
+                    if let env = selectedEnvironment {
+                        Button(role: .destructive) {
                             for variable in env.variables {
                                 variable.deleteSecureValue()
                             }
                             modelContext.delete(env)
                             selectedEnvironment = nil
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
-                    } label: {
-                        Label("Delete", systemImage: "trash")
                     }
                 }
             }
-        }
-        .alert("New Environment", isPresented: $showingAddEnvironment) {
-            TextField("Name", text: $newEnvironmentName)
-            Button("Cancel", role: .cancel) {
-                newEnvironmentName = ""
+            .alert("New Environment", isPresented: $showingAddEnvironment) {
+                TextField("Name", text: $newEnvironmentName)
+                Button("Cancel", role: .cancel) {
+                    newEnvironmentName = ""
+                }
+                Button("Create") {
+                    createEnvironment()
+                }
             }
-            Button("Create") {
-                createEnvironment()
-            }
         }
+        .frame(width: 650, height: 450)
     }
     
     private func createEnvironment() {
