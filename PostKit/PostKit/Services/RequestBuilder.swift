@@ -25,15 +25,19 @@ final class RequestBuilder: Sendable {
         urlOverride: String? = nil,
         bodyOverride: String?? = nil
     ) throws -> URLRequest {
-        // Merge path variables with environment variables (path vars take precedence)
-        var allVariables = variables
+        let allVariables = variables
+
+        // Build path variable lookup from request's pathVariablesData
         let pathVariables = [KeyValuePair].decode(from: request.pathVariablesData)
+        var pathVarLookup: [String: String] = [:]
         for pathVar in pathVariables where pathVar.isEnabled && !pathVar.key.isEmpty {
-            allVariables[pathVar.key] = pathVar.value
+            pathVarLookup[pathVar.key] = pathVar.value
         }
-        
+
         let effectiveURL = urlOverride ?? request.urlTemplate
-        let interpolatedURL = try interpolator.interpolate(effectiveURL, with: allVariables)
+        // First replace :varName path variables, then {{varName}} environment variables
+        let pathInterpolated = interpolatePathVariables(effectiveURL, with: pathVarLookup)
+        let interpolatedURL = try interpolator.interpolate(pathInterpolated, with: allVariables)
 
         var urlComponents = URLComponents(string: interpolatedURL)
 
@@ -124,6 +128,25 @@ final class RequestBuilder: Sendable {
         case .none:
             break
         }
+    }
+
+    // MARK: - Path Variable Interpolation
+
+    /// Replaces `:varName` path variable tokens in a URL with their values.
+    /// Only matches `:varName` after a `/` to avoid false positives (e.g. port numbers in `http://host:8080`).
+    private func interpolatePathVariables(_ template: String, with pathVars: [String: String]) -> String {
+        guard !pathVars.isEmpty else { return template }
+
+        var result = template
+        for (key, value) in pathVars {
+            // Match /:key followed by end-of-string, /, or ?
+            let pattern = "/:\(NSRegularExpression.escapedPattern(for: key))(?=[/?]|$)"
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let range = NSRange(result.startIndex..., in: result)
+                result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: "/\(NSRegularExpression.escapedTemplate(for: value))")
+            }
+        }
+        return result
     }
 
     // MARK: - Environment Variables
