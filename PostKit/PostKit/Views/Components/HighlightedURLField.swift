@@ -14,14 +14,14 @@ struct HighlightedURLField: NSViewRepresentable {
     var font: NSFont = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
     var onSubmit: (() -> Void)?
 
-    // Matches {{anything-except-closing-braces}}
+    // Matches {{anything-except-closing-braces}} — environment variables
     private static let variableRegex = try! NSRegularExpression(pattern: #"\{\{([^}]+)\}\}"#)
+    // Matches :pathVar — path variables (after a /)
+    private static let pathVarRegex = try! NSRegularExpression(pattern: #"(?<=/):[a-zA-Z_][a-zA-Z0-9_]*"#)
     // Matches URL scheme (http://, https://, etc.)
     private static let schemeRegex = try! NSRegularExpression(pattern: #"^[a-zA-Z][a-zA-Z0-9+.-]*://"#)
     // Matches query parameter keys (after ? or &)
     private static let queryParamRegex = try! NSRegularExpression(pattern: #"[?&]([^=&\s]+)(?==)"#)
-    // Matches path segments
-    private static let pathSegmentRegex = try! NSRegularExpression(pattern: #"(/[^/?#\s]*)"#)
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -132,7 +132,16 @@ struct HighlightedURLField: NSViewRepresentable {
             }
         }
 
-        // Highlight {{variable}} tokens in orange with medium weight
+        // Highlight :pathVariable tokens in purple with medium weight
+        let pathVarMatches = Self.pathVarRegex.matches(in: fullString, range: fullRange)
+        for match in pathVarMatches {
+            storage.addAttributes([
+                .foregroundColor: NSColor.systemPurple,
+                .font: NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .medium)
+            ], range: match.range)
+        }
+
+        // Highlight {{variable}} tokens in orange with medium weight (applied last to override)
         let variableMatches = Self.variableRegex.matches(in: fullString, range: fullRange)
         for match in variableMatches {
             storage.addAttributes([
@@ -140,7 +149,7 @@ struct HighlightedURLField: NSViewRepresentable {
                 .font: NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .medium)
             ], range: match.range)
         }
-        
+
         storage.endEditing()
     }
 
