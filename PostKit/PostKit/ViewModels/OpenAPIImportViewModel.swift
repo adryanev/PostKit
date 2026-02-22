@@ -47,7 +47,6 @@ final class OpenAPIImportViewModel {
     
     var spec: OpenAPISpec?
     var importMode: ImportMode = .createNew
-    var selectedServer: String?
     var selectedEndpoints: Set<String> = []
     var diffResult: DiffResult?
     var endpointDecisions: [String: EndpointDecision] = [:]
@@ -114,7 +113,6 @@ final class OpenAPIImportViewModel {
                 let parsedSpec = try parser.parseSpec(data)
                 
                 self.spec = parsedSpec
-                self.selectedServer = parsedSpec.servers.first?.url ?? ""
                 self.selectedEndpoints = Set(parsedSpec.endpoints.map { $0.id })
                 
                 if parsedSpec.refSkipCount > 0 {
@@ -175,7 +173,7 @@ final class OpenAPIImportViewModel {
         diffResult = diffEngine.diff(
             spec: spec,
             selectedEndpoints: selectedEndpointList,
-            serverURL: selectedServer ?? "",
+            serverURL: "{{baseUrl}}",
             existingSnapshots: existingSnapshots,
             securitySchemes: spec.securitySchemes
         )
@@ -220,7 +218,6 @@ final class OpenAPIImportViewModel {
             _ = try importer.importNewCollection(
                 spec: spec,
                 selectedEndpoints: selectedEndpointList,
-                serverURL: selectedServer ?? "",
                 into: context
             )
             
@@ -231,7 +228,6 @@ final class OpenAPIImportViewModel {
                 decisions: decisions,
                 spec: spec,
                 selectedEndpoints: selectedEndpointList,
-                serverURL: selectedServer ?? "",
                 context: context
             )
         }

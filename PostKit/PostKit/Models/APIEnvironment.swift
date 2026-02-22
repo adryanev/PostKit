@@ -7,6 +7,7 @@ final class APIEnvironment {
     var name: String
     var isActive: Bool
     var createdAt: Date
+    var openAPIServerURL: String?
     
     @Relationship(deleteRule: .cascade, inverse: \Variable.environment)
     var variables: [Variable] = []
@@ -18,5 +19,6 @@ final class APIEnvironment {
         self.name = name
         self.isActive = false
         self.createdAt = Date()
+        self.openAPIServerURL = nil
     }
 }

@@ -22,21 +22,23 @@ struct URLBar: View {
             .accessibilityLabel("HTTP Method")
             .accessibilityValue(method.rawValue)
             
-            TextField("Enter request URL", text: $url)
-                .textFieldStyle(.plain)
-                .font(.system(.body, design: .monospaced))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .textBackgroundColor))
-                .cornerRadius(6)
-                .focused($isURLFocused)
-                .onSubmit {
+            HighlightedURLField(
+                text: $url,
+                placeholder: "Enter request URL",
+                onSubmit: {
                     if !isSending {
                         onSend()
                     }
                 }
-                .accessibilityLabel("Request URL")
-                .accessibilityHint("Enter the URL for the HTTP request")
+            )
+            .frame(height: 22)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color(nsColor: .textBackgroundColor))
+            .cornerRadius(6)
+            .focused($isURLFocused)
+            .accessibilityLabel("Request URL")
+            .accessibilityHint("Enter the URL for the HTTP request")
             
             Button(action: isSending ? onCancel : onSend) {
                 if isSending {

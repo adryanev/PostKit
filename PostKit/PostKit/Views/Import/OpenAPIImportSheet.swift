@@ -287,98 +287,380 @@ struct TargetStepView: View {
 
 struct ConfigureStepView: View {
     @Bindable var viewModel: OpenAPIImportViewModel
+    @State private var expandedEnvironments: Set<Int> = [0]
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             if let spec = viewModel.spec {
-                if !spec.servers.isEmpty {
-                    HStack {
-                        Text("Server:")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if !viewModel.isUpdateMode && !spec.servers.isEmpty {
+                            environmentsSection(for: spec)
+                        } else if !viewModel.isUpdateMode {
+                            fallbackEnvironmentView
+                        }
                         
-                        Menu {
-                            ForEach(spec.servers, id: \.url) { server in
-                                Button {
-                                    viewModel.selectedServer = server.url
-                                } label: {
-                                    HStack {
-                                        Text(server.description ?? server.url)
-                                        if viewModel.selectedServer == server.url {
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Text(viewModel.selectedServer ?? "Select a server")
-                                    .lineLimit(1)
-                                Spacer()
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        endpointsSection(for: spec)
                     }
+                    .padding()
                 }
-                
-                HStack {
-                    Text("Endpoints (\(viewModel.selectedEndpoints.count)/\(spec.endpoints.count) selected)")
-                        .font(.headline)
-                    Spacer()
-                    Button(viewModel.selectedEndpoints.count == spec.endpoints.count ? "Deselect All" : "Select All") {
-                        if viewModel.selectedEndpoints.count == spec.endpoints.count {
-                            viewModel.deselectAllEndpoints()
-                        } else {
-                            viewModel.selectAllEndpoints()
-                        }
-                    }
-                }
-                
-                List {
-                    ForEach(spec.endpoints) { endpoint in
-                        HStack {
-                            Toggle("", isOn: Binding(
-                                get: { viewModel.selectedEndpoints.contains(endpoint.id) },
-                                set: { isSelected in
-                                    if isSelected {
-                                        viewModel.selectedEndpoints.insert(endpoint.id)
-                                    } else {
-                                        viewModel.selectedEndpoints.remove(endpoint.id)
-                                    }
-                                }
-                            ))
-                            .toggleStyle(.checkbox)
-                            
-                            Text(endpoint.method.rawValue)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(endpoint.method.color)
-                                .frame(width: 60)
-                            
-                            Text(endpoint.path)
-                                .lineLimit(1)
-                            
-                            Spacer()
-                            
-                            Text(endpoint.name)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func environmentsSection(for spec: OpenAPISpec) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Environments")
+                    .font(.headline)
+                Spacer()
+                Text("\(spec.servers.count) will be created")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            ForEach(Array(spec.servers.enumerated()), id: \.offset) { index, server in
+                EnvironmentPreviewCard(
+                    server: server,
+                    securitySchemes: spec.securitySchemes,
+                    index: index,
+                    isActive: index == 0,
+                    isExpanded: expandedEnvironments.contains(index)
+                ) {
+                    if expandedEnvironments.contains(index) {
+                        expandedEnvironments.remove(index)
+                    } else {
+                        expandedEnvironments.insert(index)
                     }
                 }
             }
         }
+    }
+    
+    @ViewBuilder
+    private var fallbackEnvironmentView: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "server.rack")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Default Environment")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text("No servers defined in spec. A single environment will be created.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(8)
+    }
+    
+    @ViewBuilder
+    private func endpointsSection(for spec: OpenAPISpec) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Endpoints")
+                        .font(.headline)
+                    Text("\(viewModel.selectedEndpoints.count) of \(spec.endpoints.count) selected")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(viewModel.selectedEndpoints.count == spec.endpoints.count ? "Deselect All" : "Select All") {
+                    if viewModel.selectedEndpoints.count == spec.endpoints.count {
+                        viewModel.deselectAllEndpoints()
+                    } else {
+                        viewModel.selectAllEndpoints()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            
+            VStack(spacing: 1) {
+                ForEach(spec.endpoints) { endpoint in
+                    EndpointRow(
+                        endpoint: endpoint,
+                        isSelected: viewModel.selectedEndpoints.contains(endpoint.id)
+                    ) { isSelected in
+                        if isSelected {
+                            viewModel.selectedEndpoints.insert(endpoint.id)
+                        } else {
+                            viewModel.selectedEndpoints.remove(endpoint.id)
+                        }
+                    }
+                }
+            }
+            .background(Color(nsColor: .controlBackgroundColor))
+            .cornerRadius(8)
+        }
+    }
+}
+
+struct EnvironmentPreviewCard: View {
+    let server: OpenAPIServer
+    let securitySchemes: [OpenAPISecurityScheme]
+    let index: Int
+    let isActive: Bool
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    
+    private var authTypes: [String] {
+        var types: [String] = []
+        for scheme in securitySchemes {
+            switch scheme.type {
+            case .http(let name):
+                if name == "bearer" { types.append("Bearer") }
+                else if name == "basic" { types.append("Basic") }
+            case .apiKey:
+                types.append("API Key")
+            case .unsupported:
+                break
+            }
+        }
+        var seen = Set<String>()
+        return types.filter { seen.insert($0).inserted }
+    }
+    
+    private var baseURLDisplay: String {
+        var url = server.url
+        if url.hasSuffix("/") { url = String(url.dropLast()) }
+        return url.replacingOccurrences(of: "{", with: "{{").replacingOccurrences(of: "}", with: "}}")
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            headerButton
+            if isExpanded {
+                expandedContent
+            }
+        }
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isActive ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+    }
+    
+    @ViewBuilder
+    private var headerButton: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                statusIndicator
+                serverInfo
+                Spacer()
+                rightSideInfo
+            }
+            .padding(12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    @ViewBuilder
+    private var statusIndicator: some View {
+        Circle()
+            .fill(isActive ? Color.green : Color.secondary.opacity(0.5))
+            .frame(width: 8, height: 8)
+    }
+    
+    @ViewBuilder
+    private var serverInfo: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(server.description ?? server.url)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                if isActive {
+                    activeBadge
+                }
+            }
+            
+            Text(baseURLDisplay)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+    
+    @ViewBuilder
+    private var activeBadge: some View {
+        Text("ACTIVE")
+            .font(.system(size: 9, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.green)
+            .cornerRadius(4)
+    }
+    
+    @ViewBuilder
+    private var rightSideInfo: some View {
+        HStack(spacing: 8) {
+            if !server.variables.isEmpty {
+                Label("\(server.variables.count)", systemImage: "slider.horizontal.3")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            
+            authTypeBadges
+            
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+        }
+    }
+    
+    @ViewBuilder
+    private var authTypeBadges: some View {
+        if !authTypes.isEmpty {
+            HStack(spacing: 4) {
+                ForEach(authTypes, id: \.self) { type in
+                    authBadge(type)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func authBadge(_ type: String) -> some View {
+        Text(type)
+            .font(.system(size: 9, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.accentColor.opacity(0.15))
+            .foregroundStyle(Color.accentColor)
+            .cornerRadius(4)
+    }
+    
+    @ViewBuilder
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+                .padding(.horizontal, 12)
+            
+            Text("Variables")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+            
+            VariableRow(key: "baseUrl", value: baseURLDisplay, isSecret: false)
+            
+            ForEach(server.variables, id: \.name) { variable in
+                VariableRow(key: variable.name, value: variable.defaultValue, isSecret: false)
+            }
+            
+            authVariableRows
+        }
+        .padding(.bottom, 8)
+        .background(Color(nsColor: .textBackgroundColor))
+    }
+    
+    @ViewBuilder
+    private var authVariableRows: some View {
+        ForEach(authTypes, id: \.self) { type in
+            if type == "Bearer" {
+                VariableRow(key: "bearerToken", value: "", isSecret: true)
+            } else if type == "Basic" {
+                VariableRow(key: "basicUsername", value: "", isSecret: false)
+                VariableRow(key: "basicPassword", value: "", isSecret: true)
+            } else if type == "API Key" {
+                VariableRow(key: "apiKeyValue", value: "", isSecret: true)
+            }
+        }
+    }
+}
+
+struct VariableRow: View {
+    let key: String
+    let value: String
+    let isSecret: Bool
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            if isSecret {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.orange)
+            }
+            
+            Text("{{\(key)}}")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.primary)
+            
+            if !value.isEmpty {
+                Text("=")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                
+                Text(value)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text("=")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                
+                if isSecret {
+                    Text("••••••")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
+    }
+}
+
+struct EndpointRow: View {
+    let endpoint: OpenAPIEndpoint
+    let isSelected: Bool
+    let onToggle: (Bool) -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: Binding(
+                get: { isSelected },
+                set: { onToggle($0) }
+            ))
+            .toggleStyle(.checkbox)
+            .allowsHitTesting(false)
+            
+            Text(endpoint.method.rawValue)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(endpoint.method.color)
+                .frame(width: 50)
+            
+            Text(endpoint.path)
+                .font(.system(size: 12, design: .monospaced))
+                .lineLimit(1)
+            
+            Spacer()
+            
+            Text(endpoint.name)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onToggle(!isSelected)
+        }
     }
 }
 
