@@ -8,7 +8,7 @@ struct EnvironmentPicker: View {
     @State private var showingEnvironmentEditor = false
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             Picker("", selection: $selectedEnvironment) {
                 Text("No Environment").tag(nil as APIEnvironment?)
                 
@@ -27,11 +27,16 @@ struct EnvironmentPicker: View {
             .pickerStyle(.menu)
             .frame(minWidth: 120, alignment: .leading)
             
+            Divider()
+                .frame(height: 16)
+                .padding(.horizontal, 4)
+            
             Button {
                 showingEnvironmentEditor = true
             } label: {
-                Image(systemName: "sidebar.right")
-                    .font(.system(size: 11))
+                Image(systemName: "gear")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.borderless)
             .help("Manage Environments")
