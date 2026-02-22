@@ -4,7 +4,7 @@ import FactoryKit
 
 struct CollectionRow: View {
     let collection: RequestCollection
-    @Binding var selectedRequest: HTTPRequest?
+    @Binding var selection: SidebarSelection?
     @Environment(\.modelContext) private var modelContext
     @State private var isExpanded = true
     @State private var isRenamingCollection = false
@@ -19,39 +19,13 @@ struct CollectionRow: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(collection.folders.sorted(by: { $0.sortOrder < $1.sortOrder })) { folder in
-                FolderRow(folder: folder, selectedRequest: $selectedRequest)
+                FolderRow(folder: folder, selection: $selection)
             }
             ForEach(collection.requests.filter { $0.folder == nil }.sorted(by: { $0.sortOrder < $1.sortOrder })) { request in
                 requestRow(for: request)
             }
         } label: {
-            HStack {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(.blue)
-                Text(collection.name)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .contextMenu {
-                Button("New Request") {
-                    createRequest()
-                }
-                Button("New Folder") {
-                    createFolder()
-                }
-                Divider()
-                Button("Export Collection...") {
-                    exportCollection()
-                }
-                Divider()
-                Button("Rename") {
-                    newName = collection.name
-                    isRenamingCollection = true
-                }
-                Button("Delete", role: .destructive) {
-                    deleteCollection(collection)
-                }
-            }
+            collectionLabel
         }
         .alert("Rename Collection", isPresented: $isRenamingCollection) {
             TextField("Name", text: $newName)
@@ -80,11 +54,46 @@ struct CollectionRow: View {
             }
         }
     }
+    
+    @ViewBuilder
+    private var collectionLabel: some View {
+        HStack {
+            Image(systemName: "folder.fill")
+                .foregroundStyle(.blue)
+            Text(collection.name)
+                .lineLimit(1)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selection = .collection(collection)
+        }
+        .contextMenu {
+            Button("New Request") {
+                createRequest()
+            }
+            Button("New Folder") {
+                createFolder()
+            }
+            Divider()
+            Button("Export Collection...") {
+                exportCollection()
+            }
+            Divider()
+            Button("Rename") {
+                newName = collection.name
+                isRenamingCollection = true
+            }
+            Button("Delete", role: .destructive) {
+                deleteCollection(collection)
+            }
+        }
+    }
 
     @ViewBuilder
     private func requestRow(for request: HTTPRequest) -> some View {
         RequestRow(request: request, compact: true)
-            .tag(request)
+            .tag(SidebarSelection.request(request))
             .contextMenu {
                 Button(request.isPinned ? "Unpin from Menu Bar" : "Pin to Menu Bar") {
                     request.isPinned.toggle()
@@ -138,7 +147,7 @@ struct CollectionRow: View {
         duplicate.folder = request.folder
         duplicate.sortOrder = collection.requests.count
         modelContext.insert(duplicate)
-        selectedRequest = duplicate
+        selection = .request(duplicate)
     }
 
     private func deleteRequest(_ request: HTTPRequest) {
@@ -146,8 +155,8 @@ struct CollectionRow: View {
         Task {
             await spotlightIndexer.deindexRequest(id: request.id)
         }
-        if selectedRequest?.id == request.id {
-            selectedRequest = nil
+        if case .request(let selected) = selection, selected.id == request.id {
+            selection = nil
         }
         modelContext.delete(request)
     }
@@ -171,7 +180,7 @@ struct CollectionRow: View {
 
 struct FolderRow: View {
     let folder: Folder
-    @Binding var selectedRequest: HTTPRequest?
+    @Binding var selection: SidebarSelection?
     @Environment(\.modelContext) private var modelContext
     @State private var isRenamingFolder = false
     @State private var isRenamingRequest = false
@@ -185,7 +194,7 @@ struct FolderRow: View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(folder.requests.sorted(by: { $0.sortOrder < $1.sortOrder })) { request in
                 RequestRow(request: request, compact: true)
-                    .tag(request)
+                    .tag(SidebarSelection.request(request))
                     .contextMenu {
                         Button(request.isPinned ? "Unpin from Menu Bar" : "Pin to Menu Bar") {
                             request.isPinned.toggle()
@@ -206,29 +215,7 @@ struct FolderRow: View {
                     }
             }
         } label: {
-            HStack {
-                Image(systemName: "folder")
-                    .foregroundStyle(.secondary)
-                Text(folder.name)
-                    .lineLimit(1)
-                Spacer()
-            }
-            .contextMenu {
-                Button("New Request") {
-                    let request = HTTPRequest(name: "New Request")
-                    request.folder = folder
-                    request.collection = folder.collection
-                    modelContext.insert(request)
-                }
-                Divider()
-                Button("Rename") {
-                    newName = folder.name
-                    isRenamingFolder = true
-                }
-                Button("Delete", role: .destructive) {
-                    deleteFolder(folder)
-                }
-            }
+            folderLabel
         }
         .alert("Rename Folder", isPresented: $isRenamingFolder) {
             TextField("Name", text: $newName)
@@ -243,6 +230,37 @@ struct FolderRow: View {
             Button("Rename") {
                 renamingRequest?.name = newName
                 renamingRequest?.updatedAt = Date()
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var folderLabel: some View {
+        HStack {
+            Image(systemName: "folder")
+                .foregroundStyle(.secondary)
+            Text(folder.name)
+                .lineLimit(1)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selection = .folder(folder)
+        }
+        .contextMenu {
+            Button("New Request") {
+                let request = HTTPRequest(name: "New Request")
+                request.folder = folder
+                request.collection = folder.collection
+                modelContext.insert(request)
+            }
+            Divider()
+            Button("Rename") {
+                newName = folder.name
+                isRenamingFolder = true
+            }
+            Button("Delete", role: .destructive) {
+                deleteFolder(folder)
             }
         }
     }
@@ -261,7 +279,7 @@ struct FolderRow: View {
         duplicate.folder = folder
         duplicate.sortOrder = folder.requests.count
         modelContext.insert(duplicate)
-        selectedRequest = duplicate
+        selection = .request(duplicate)
     }
 
     private func deleteRequest(_ request: HTTPRequest) {
@@ -269,8 +287,8 @@ struct FolderRow: View {
         Task {
             await spotlightIndexer.deindexRequest(id: request.id)
         }
-        if selectedRequest?.id == request.id {
-            selectedRequest = nil
+        if case .request(let selected) = selection, selected.id == request.id {
+            selection = nil
         }
         modelContext.delete(request)
     }
@@ -295,7 +313,7 @@ struct FolderRow: View {
                 c.requests.append(HTTPRequest(name: "Get Users"))
                 return c
             }(),
-            selectedRequest: .constant(nil)
+            selection: .constant(nil)
         )
     }
     .modelContainer(for: RequestCollection.self, inMemory: true)
