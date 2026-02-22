@@ -13,6 +13,20 @@ struct RequestEditorPane: View {
         case postRequest = "Post-req"
     }
     
+    private var detectedPathVariables: [String] {
+        let pattern = #"\{\{([^}]+)\}\}"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(request.urlTemplate.startIndex..., in: request.urlTemplate)
+        let matches = regex.matches(in: request.urlTemplate, range: range)
+        return matches.compactMap { match in
+            if match.numberOfRanges > 1,
+               let varRange = Range(match.range(at: 1), in: request.urlTemplate) {
+                return String(request.urlTemplate[varRange])
+            }
+            return nil
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             Picker("Editor Tab", selection: $selectedTab) {
@@ -24,49 +38,68 @@ struct RequestEditorPane: View {
             .padding(12)
             
             Divider()
-            
-            ScrollView {
-                switch selectedTab {
-                case .params:
-                    QueryParamsEditor(
-                        params: Binding(
-                            get: { [KeyValuePair].decode(from: request.queryParamsData) },
-                            set: { request.queryParamsData = $0.encode() }
+
+            switch selectedTab {
+            case .params:
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if !detectedPathVariables.isEmpty {
+                            PathVariablesEditor(
+                                pathVariables: Binding(
+                                    get: { [KeyValuePair].decode(from: request.pathVariablesData) },
+                                    set: { request.pathVariablesData = $0.encode() }
+                                ),
+                                detectedVariables: detectedPathVariables
+                            )
+                            
+                            Divider()
+                        }
+                        
+                        QueryParamsEditor(
+                            params: Binding(
+                                get: { [KeyValuePair].decode(from: request.queryParamsData) },
+                                set: { request.queryParamsData = $0.encode() }
+                            )
                         )
-                    )
-                case .headers:
+                    }
+                    .padding(12)
+                }
+            case .headers:
+                ScrollView {
                     HeadersEditor(
                         headers: Binding(
                             get: { [KeyValuePair].decode(from: request.headersData) },
                             set: { request.headersData = $0.encode() }
                         )
                     )
-                case .body:
-                    BodyEditor(
-                        bodyType: $request.bodyType,
-                        bodyContent: $request.bodyContent
-                    )
-                case .auth:
-                    AuthEditor(authConfig: $request.authConfig)
-                case .preRequest:
-                    ScriptEditor(
-                        title: "Pre-request Script",
-                        description: "This script runs before the request is sent. Use pk.environment.get/set, pk.request.headers/method/url/body.",
-                        script: Binding(
-                            get: { request.preRequestScript ?? "" },
-                            set: { request.preRequestScript = $0.isEmpty ? nil : $0 }
-                        )
-                    )
-                case .postRequest:
-                    ScriptEditor(
-                        title: "Post-request Script",
-                        description: "This script runs after the response is received. Use pk.response.code/headers/body/time, pk.environment.get/set.",
-                        script: Binding(
-                            get: { request.postRequestScript ?? "" },
-                            set: { request.postRequestScript = $0.isEmpty ? nil : $0 }
-                        )
-                    )
                 }
+            case .body:
+                BodyEditor(
+                    bodyType: $request.bodyType,
+                    bodyContent: $request.bodyContent
+                )
+            case .auth:
+                ScrollView {
+                    AuthEditor(authConfig: $request.authConfig)
+                }
+            case .preRequest:
+                ScriptEditor(
+                    title: "Pre-request Script",
+                    description: "This script runs before the request is sent. Use pk.environment.get/set, pk.request.headers/method/url/body.",
+                    script: Binding(
+                        get: { request.preRequestScript ?? "" },
+                        set: { request.preRequestScript = $0.isEmpty ? nil : $0 }
+                    )
+                )
+            case .postRequest:
+                ScriptEditor(
+                    title: "Post-request Script",
+                    description: "This script runs after the response is received. Use pk.response.code/headers/body/time, pk.environment.get/set.",
+                    script: Binding(
+                        get: { request.postRequestScript ?? "" },
+                        set: { request.postRequestScript = $0.isEmpty ? nil : $0 }
+                    )
+                )
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
@@ -81,7 +114,85 @@ struct QueryParamsEditor: View {
             items: $params,
             placeholder: "Query parameter"
         )
-        .padding(12)
+    }
+}
+
+struct PathVariablesEditor: View {
+    @Binding var pathVariables: [KeyValuePair]
+    let detectedVariables: [String]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Path Variables", systemImage: "chevron.left.forwardslash.chevron.right")
+                    .font(.headline)
+                Spacer()
+            }
+            
+            Text("Variables detected in URL. Set values here to override environment variables.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            
+            VStack(spacing: 4) {
+                HStack {
+                    Text("Key")
+                        .frame(width: 150, alignment: .leading)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Value")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("")
+                        .frame(width: 60)
+                }
+                .padding(.horizontal, 8)
+                
+                ForEach(detectedVariables, id: \.self) { varName in
+                    PathVariableRow(
+                        varName: varName,
+                        pathVariables: $pathVariables
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct PathVariableRow: View {
+    let varName: String
+    @Binding var pathVariables: [KeyValuePair]
+    
+    private var binding: Binding<String> {
+        Binding(
+            get: {
+                pathVariables.first { $0.key == varName }?.value ?? ""
+            },
+            set: { newValue in
+                if let index = pathVariables.firstIndex(where: { $0.key == varName }) {
+                    pathVariables[index].value = newValue
+                } else {
+                    let newVar = KeyValuePair(key: varName, value: newValue, isEnabled: true)
+                    pathVariables.append(newVar)
+                }
+            }
+        )
+    }
+    
+    var body: some View {
+        HStack {
+            Text("{{\(varName)}}")
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.orange)
+                .frame(width: 150, alignment: .leading)
+                .padding(.horizontal, 8)
+            
+            TextField("Value", text: binding)
+                .textFieldStyle(.roundedBorder)
+            
+            Spacer()
+                .frame(width: 30)
+        }
     }
 }
 

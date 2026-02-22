@@ -440,6 +440,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/Frameworks/curl.xcframework/macos-arm64_x86_64/curl.framework/Headers",
 				);
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -484,6 +485,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/Frameworks/curl.xcframework/macos-arm64_x86_64/curl.framework/Headers",
 				);
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
