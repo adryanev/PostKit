@@ -3,9 +3,15 @@ import SwiftData
 import FactoryKit
 import CoreSpotlight
 
+enum SidebarSelection: Hashable {
+    case collection(RequestCollection)
+    case folder(Folder)
+    case request(HTTPRequest)
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @State private var selectedRequest: HTTPRequest?
+    @State private var selectedSidebarItem: SidebarSelection?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
     @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
@@ -19,20 +25,12 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            CollectionsSidebar(selectedRequest: $selectedRequest)
+            CollectionsSidebar(selection: $selectedSidebarItem)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 250, max: 350)
                 .focused($focusedPane, equals: .sidebar)
         } detail: {
-            if let request = selectedRequest {
-                RequestDetailView(request: request)
-                    .focused($focusedPane, equals: .detail)
-            } else {
-                ContentUnavailableView(
-                    "Select a Request",
-                    systemImage: "arrow.right.circle",
-                    description: Text("Choose a request from the sidebar to edit and send")
-                )
-            }
+            detailView
+                .focused($focusedPane, equals: .detail)
         }
         .navigationSplitViewStyle(.prominentDetail)
         .toolbar {
@@ -40,7 +38,6 @@ struct ContentView: View {
                 EnvironmentPicker()
             }
         }
-        .focusedValue(\.selectedRequest, selectedRequest)
         .onKeyPress(.tab) {
             if NSEvent.modifierFlags.contains(.control) {
                 cycleFocus()
@@ -48,11 +45,11 @@ struct ContentView: View {
             }
             return .ignored
         }
-        .onChange(of: selectedRequest) { oldValue, newValue in
-            if let old = oldValue {
+        .onChange(of: selectedSidebarItem) { oldValue, newValue in
+            if case .request(let old) = oldValue {
                 old.updatedAt = Date()
             }
-            if let new = newValue {
+            if case .request(let new) = newValue {
                 Task {
                     await spotlightIndexer.indexRequest(
                         new,
@@ -77,6 +74,24 @@ struct ContentView: View {
             }
         }
     }
+    
+    @ViewBuilder
+    private var detailView: some View {
+        switch selectedSidebarItem {
+        case .collection(let collection):
+            CollectionDetailView(collection: collection)
+        case .folder(let folder):
+            FolderDetailView(folder: folder)
+        case .request(let request):
+            RequestDetailView(request: request)
+        case .none:
+            ContentUnavailableView(
+                "Select an Item",
+                systemImage: "arrow.right.circle",
+                description: Text("Choose a collection, folder, or request from the sidebar")
+            )
+        }
+    }
 
     private func cycleFocus() {
         switch focusedPane {
@@ -91,7 +106,7 @@ struct ContentView: View {
               let requestId = UUID(uuidString: String(requestIdString)) else { return }
         
         if let request = allRequests.first(where: { $0.id == requestId }) {
-            selectedRequest = request
+            selectedSidebarItem = .request(request)
             NSApp.activate()
         }
     }
@@ -101,7 +116,7 @@ struct ContentView: View {
               let identifier = UUID(uuidString: identifierString) else { return }
         
         if let request = allRequests.first(where: { $0.id == identifier }) {
-            selectedRequest = request
+            selectedSidebarItem = .request(request)
             NSApp.activate()
         }
     }

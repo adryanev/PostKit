@@ -2,16 +2,16 @@ import SwiftUI
 import SwiftData
 
 struct CollectionsSidebar: View {
-    @Binding var selectedRequest: HTTPRequest?
+    @Binding var selection: SidebarSelection?
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RequestCollection.sortOrder) private var collections: [RequestCollection]
     @State private var isAddingCollection = false
     @State private var newCollectionName = ""
 
     var body: some View {
-        List(selection: $selectedRequest) {
+        List(selection: $selection) {
             ForEach(collections) { collection in
-                CollectionRow(collection: collection, selectedRequest: $selectedRequest)
+                CollectionRow(collection: collection, selection: $selection)
             }
             .onDelete(perform: deleteCollections)
             .onMove(perform: moveCollections)
@@ -60,6 +60,6 @@ struct CollectionsSidebar: View {
 }
 
 #Preview {
-    CollectionsSidebar(selectedRequest: .constant(nil))
+    CollectionsSidebar(selection: .constant(nil))
         .modelContainer(for: RequestCollection.self, inMemory: true)
 }
