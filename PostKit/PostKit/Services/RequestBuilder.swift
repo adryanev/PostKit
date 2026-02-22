@@ -44,7 +44,8 @@ final class RequestBuilder: Sendable {
            authConfig.apiKeyLocation == .queryParam,
            let name = authConfig.apiKeyName,
            let value = authConfig.apiKeyValue {
-            queryItems.append(URLQueryItem(name: name, value: value))
+            let resolved = (try? interpolator.interpolate(value, with: variables)) ?? value
+            queryItems.append(URLQueryItem(name: name, value: resolved))
         }
 
         if !queryItems.isEmpty {
@@ -83,31 +84,34 @@ final class RequestBuilder: Sendable {
             }
         }
 
-        applyAuth(&urlRequest, authConfig: authConfig)
+        applyAuth(&urlRequest, authConfig: authConfig, variables: variables)
 
         return urlRequest
     }
 
     // MARK: - Auth
 
-    /// Applies authentication headers/query-params to the request.
-    func applyAuth(_ urlRequest: inout URLRequest, authConfig: AuthConfig) {
+    func applyAuth(_ urlRequest: inout URLRequest, authConfig: AuthConfig, variables: [String: String] = [:]) {
         switch authConfig.type {
         case .bearer:
             if let token = authConfig.token {
-                urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                let resolved = (try? interpolator.interpolate(token, with: variables)) ?? token
+                urlRequest.setValue("Bearer \(resolved)", forHTTPHeaderField: "Authorization")
             }
         case .basic:
             if let username = authConfig.username,
                let password = authConfig.password {
-                let credentials = Data("\(username):\(password)".utf8).base64EncodedString()
+                let resolvedUser = (try? interpolator.interpolate(username, with: variables)) ?? username
+                let resolvedPass = (try? interpolator.interpolate(password, with: variables)) ?? password
+                let credentials = Data("\(resolvedUser):\(resolvedPass)".utf8).base64EncodedString()
                 urlRequest.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
             }
         case .apiKey:
             if let name = authConfig.apiKeyName,
                let value = authConfig.apiKeyValue {
+                let resolved = (try? interpolator.interpolate(value, with: variables)) ?? value
                 if authConfig.apiKeyLocation == .header {
-                    urlRequest.setValue(value, forHTTPHeaderField: name)
+                    urlRequest.setValue(resolved, forHTTPHeaderField: name)
                 }
             }
         case .none:

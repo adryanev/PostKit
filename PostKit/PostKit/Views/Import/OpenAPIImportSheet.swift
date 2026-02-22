@@ -291,44 +291,46 @@ struct ConfigureStepView: View {
     var body: some View {
         VStack(spacing: 16) {
             if let spec = viewModel.spec {
-                if !spec.servers.isEmpty {
-                    HStack {
-                        Text("Server:")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        
-                        Menu {
-                            ForEach(spec.servers, id: \.url) { server in
-                                Button {
-                                    viewModel.selectedServer = server.url
-                                } label: {
-                                    HStack {
-                                        Text(server.description ?? server.url)
-                                        if viewModel.selectedServer == server.url {
-                                            Image(systemName: "checkmark")
-                                        }
+                if !viewModel.isUpdateMode {
+                    if !spec.servers.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Environments to create:")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            
+                            ForEach(Array(spec.servers.enumerated()), id: \.offset) { index, server in
+                                HStack {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 6))
+                                        .foregroundStyle(index == 0 ? .green : .secondary)
+                                    Text(server.description ?? server.url)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                    if index == 0 {
+                                        Text("(active)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
+                                    Spacer()
+                                    Text("\(1 + server.variables.count) vars + auth")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
-                        } label: {
-                            HStack {
-                                Text(viewModel.selectedServer ?? "Select a server")
-                                    .lineLimit(1)
-                                Spacer()
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                            )
                         }
-                        .buttonStyle(.plain)
+                        .padding()
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(8)
+                    } else {
+                        HStack {
+                            Image(systemName: "info.circle")
+                            Text("No servers defined. A default environment will be created.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .cornerRadius(8)
                     }
                 }
                 
