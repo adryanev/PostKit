@@ -8,17 +8,34 @@ struct EnvironmentPicker: View {
     @State private var showingEnvironmentEditor = false
     
     var body: some View {
-        Picker("", selection: $selectedEnvironment) {
-            Text("No Environment").tag(nil as APIEnvironment?)
-            
-            Divider()
-            
-            ForEach(allEnvironments) { env in
-                Text(env.name).tag(env as APIEnvironment?)
+        HStack(spacing: 4) {
+            Picker("", selection: $selectedEnvironment) {
+                Text("No Environment").tag(nil as APIEnvironment?)
+                
+                Divider()
+                
+                ForEach(allEnvironments) { env in
+                    HStack {
+                        Text(env.name)
+                        if env.isActive {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                    .tag(env as APIEnvironment?)
+                }
             }
+            .pickerStyle(.menu)
+            .frame(minWidth: 120, alignment: .leading)
+            
+            Button {
+                showingEnvironmentEditor = true
+            } label: {
+                Image(systemName: "sidebar.right")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .help("Manage Environments")
         }
-        .pickerStyle(.menu)
-        .frame(minWidth: 150, alignment: .leading)
         .onAppear {
             selectedEnvironment = activeEnvironments.first
         }
@@ -27,13 +44,6 @@ struct EnvironmentPicker: View {
                 selectEnvironment(env)
             } else {
                 deactivateAllEnvironments()
-            }
-        }
-        .contextMenu {
-            Button {
-                showingEnvironmentEditor = true
-            } label: {
-                Label("Manage Environments...", systemImage: "gear")
             }
         }
         .sheet(isPresented: $showingEnvironmentEditor) {
@@ -148,6 +158,8 @@ struct EnvironmentEditorSheet: View {
 
 struct EnvironmentVariablesEditor: View {
     @Bindable var environment: APIEnvironment
+    @Environment(\.modelContext) private var modelContext
+    @State private var selectedVariableID: UUID?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -175,7 +187,7 @@ struct EnvironmentVariablesEditor: View {
                     description: Text("Click Add to create a new variable")
                 )
             } else {
-                Table($environment.variables) {
+                Table($environment.variables, selection: $selectedVariableID) {
                     TableColumn("Key") { $variable in
                         TextField("Key", text: $variable.key)
                     }
@@ -203,12 +215,40 @@ struct EnvironmentVariablesEditor: View {
                             .toggleStyle(.checkbox)
                     }
                     .width(60)
+                    
+                    TableColumn("") { $variable in
+                        Button {
+                            deleteVariable(variable)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete variable")
+                    }
+                    .width(30)
+                }
+                .onDeleteCommand {
+                    if let id = selectedVariableID,
+                       let variable = environment.variables.first(where: { $0.id == id }) {
+                        deleteVariable(variable)
+                    }
                 }
             }
             
             Spacer()
         }
         .padding()
+    }
+    
+    private func deleteVariable(_ variable: Variable) {
+        variable.deleteSecureValue()
+        if let index = environment.variables.firstIndex(where: { $0.id == variable.id }) {
+            environment.variables.remove(at: index)
+        }
+        modelContext.delete(variable)
+        selectedVariableID = nil
     }
 }
 
