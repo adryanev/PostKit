@@ -4,45 +4,44 @@ import SwiftData
 struct EnvironmentPicker: View {
     @Environment(\.modelContext) private var modelContext
     @Query(filter: #Predicate<APIEnvironment> { $0.isActive }) private var activeEnvironments: [APIEnvironment]
-    @State private var selectedEnvironment: APIEnvironment?
+    @State private var selectedEnvironment: EnvironmentSelection?
     @State private var showingEnvironmentEditor = false
     
     var body: some View {
-        HStack(spacing: 8) {
-            Picker("", selection: $selectedEnvironment) {
-                Text("No Environment").tag(nil as APIEnvironment?)
-                
-                Divider()
-                
-                ForEach(allEnvironments) { env in
-                    HStack {
-                        Text(env.name)
-                        if env.isActive {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    .tag(env as APIEnvironment?)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(minWidth: 120, alignment: .leading)
+        Picker("", selection: $selectedEnvironment) {
+            Text("No Environment").tag(nil as APIEnvironment?)
             
-            Button {
-                showingEnvironmentEditor = true
-            } label: {
-                Image(systemName: "gear")
-                    .font(.system(size: 12, weight: .medium))
+            Divider()
+            
+            ForEach(allEnvironments) { env in
+                HStack {
+                    Text(env.name)
+                    if env.isActive {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .tag(env as APIEnvironment?)
             }
-            .buttonStyle(.borderless)
-            .help("Manage Environments")
+            
+            Divider()
+            
+            Text("Manage Environments...")
+                .tag(EnvironmentSelection.manage)
         }
+        .pickerStyle(.menu)
+        .frame(minWidth: 120, alignment: .leading)
         .onAppear {
-            selectedEnvironment = activeEnvironments.first
+            selectedEnvironment = activeEnvironments.first.map { EnvironmentSelection.environment($0) } ?? nil
         }
         .onChange(of: selectedEnvironment) { newValue in
-            if let env = newValue {
+            switch newValue {
+            case .manage:
+                showingEnvironmentEditor = true
+                selectedEnvironment = activeEnvironments.first.map { EnvironmentSelection.environment($0) }
+            case .environment(let env):
                 selectEnvironment(env)
-            } else {
+            case .none:
                 deactivateAllEnvironments()
             }
         }
@@ -56,12 +55,37 @@ struct EnvironmentPicker: View {
     private func selectEnvironment(_ env: APIEnvironment) {
         deactivateAllEnvironments()
         env.isActive = true
-        selectedEnvironment = env
+        selectedEnvironment = .environment(env)
     }
     
     private func deactivateAllEnvironments() {
         for env in allEnvironments {
             env.isActive = false
+        }
+    }
+}
+
+private enum EnvironmentSelection: Equatable, Hashable {
+    case manage
+    case environment(APIEnvironment)
+    
+    static func == (lhs: EnvironmentSelection, rhs: EnvironmentSelection) -> Bool {
+        switch (lhs, rhs) {
+        case (.manage, .manage):
+            return true
+        case (.environment(let l), .environment(let r)):
+            return l.id == r.id
+        default:
+            return false
+        }
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .manage:
+            hasher.combine("manage")
+        case .environment(let env):
+            hasher.combine(env.id)
         }
     }
 }
