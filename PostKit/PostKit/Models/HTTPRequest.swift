@@ -9,6 +9,7 @@ final class HTTPRequest {
     var urlTemplate: String
     var headersData: Data?
     var queryParamsData: Data?
+    var pathVariablesData: Data?
     var bodyTypeRaw: String
     var bodyContent: String?
     var authConfigData: Data?
@@ -81,6 +82,7 @@ final class HTTPRequest {
         copy.urlTemplate = urlTemplate
         copy.headersData = headersData
         copy.queryParamsData = queryParamsData
+        copy.pathVariablesData = pathVariablesData
         copy.bodyTypeRaw = bodyTypeRaw
         copy.bodyContent = bodyContent
         copy.authConfigData = authConfigData

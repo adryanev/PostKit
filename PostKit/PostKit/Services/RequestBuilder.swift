@@ -25,8 +25,15 @@ final class RequestBuilder: Sendable {
         urlOverride: String? = nil,
         bodyOverride: String?? = nil
     ) throws -> URLRequest {
+        // Merge path variables with environment variables (path vars take precedence)
+        var allVariables = variables
+        let pathVariables = [KeyValuePair].decode(from: request.pathVariablesData)
+        for pathVar in pathVariables where pathVar.isEnabled && !pathVar.key.isEmpty {
+            allVariables[pathVar.key] = pathVar.value
+        }
+        
         let effectiveURL = urlOverride ?? request.urlTemplate
-        let interpolatedURL = try interpolator.interpolate(effectiveURL, with: variables)
+        let interpolatedURL = try interpolator.interpolate(effectiveURL, with: allVariables)
 
         var urlComponents = URLComponents(string: interpolatedURL)
 
@@ -34,8 +41,8 @@ final class RequestBuilder: Sendable {
         var queryItems = urlComponents?.queryItems ?? []
 
         for param in queryParams where param.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(param.key, with: variables)
-            let interpolatedValue = try interpolator.interpolate(param.value, with: variables)
+            let interpolatedKey = try interpolator.interpolate(param.key, with: allVariables)
+            let interpolatedValue = try interpolator.interpolate(param.value, with: allVariables)
             queryItems.append(URLQueryItem(name: interpolatedKey, value: interpolatedValue))
         }
 
@@ -44,7 +51,7 @@ final class RequestBuilder: Sendable {
            authConfig.apiKeyLocation == .queryParam,
            let name = authConfig.apiKeyName,
            let value = authConfig.apiKeyValue {
-            let resolved = (try? interpolator.interpolate(value, with: variables)) ?? value
+            let resolved = (try? interpolator.interpolate(value, with: allVariables)) ?? value
             queryItems.append(URLQueryItem(name: name, value: resolved))
         }
 
@@ -62,14 +69,14 @@ final class RequestBuilder: Sendable {
 
         let headers = [KeyValuePair].decode(from: request.headersData)
         for header in headers where header.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(header.key, with: variables)
-            let interpolatedValue = try interpolator.interpolate(header.value, with: variables)
+            let interpolatedKey = try interpolator.interpolate(header.key, with: allVariables)
+            let interpolatedValue = try interpolator.interpolate(header.value, with: allVariables)
             urlRequest.setValue(interpolatedValue, forHTTPHeaderField: interpolatedKey)
         }
 
         let effectiveBody: String? = bodyOverride ?? request.bodyContent
         if let bodyContent = effectiveBody, !bodyContent.isEmpty {
-            let interpolatedBody = try interpolator.interpolate(bodyContent, with: variables)
+            let interpolatedBody = try interpolator.interpolate(bodyContent, with: allVariables)
             switch request.bodyType {
             case .json, .raw, .xml:
                 urlRequest.httpBody = interpolatedBody.data(using: .utf8)
@@ -84,7 +91,7 @@ final class RequestBuilder: Sendable {
             }
         }
 
-        applyAuth(&urlRequest, authConfig: authConfig, variables: variables)
+        applyAuth(&urlRequest, authConfig: authConfig, variables: allVariables)
 
         return urlRequest
     }
