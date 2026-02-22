@@ -50,17 +50,8 @@ final class OpenAPIImporter {
                 context.insert(env)
                 
                 var existingKeys = Set<String>()
-                
-                let rawURL = server.url.hasSuffix("/") ? String(server.url.dropLast()) : server.url
-                let convertedURL = convertServerURLVariables(rawURL)
-                
-                if !existingKeys.contains("baseUrl") {
-                    let baseUrlVar = Variable(key: "baseUrl", value: convertedURL, isSecret: false, isEnabled: true)
-                    baseUrlVar.environment = env
-                    context.insert(baseUrlVar)
-                    existingKeys.insert("baseUrl")
-                }
-                
+
+                // Process server-defined variables first so they take priority
                 for variable in server.variables {
                     if !existingKeys.contains(variable.name) {
                         let v = Variable(
@@ -73,6 +64,17 @@ final class OpenAPIImporter {
                         context.insert(v)
                         existingKeys.insert(variable.name)
                     }
+                }
+
+                // Only create auto-generated baseUrl if the server didn't define one
+                let rawURL = server.url.hasSuffix("/") ? String(server.url.dropLast()) : server.url
+                let convertedURL = convertServerURLVariables(rawURL)
+
+                if !existingKeys.contains("baseUrl") {
+                    let baseUrlVar = Variable(key: "baseUrl", value: convertedURL, isSecret: false, isEnabled: true)
+                    baseUrlVar.environment = env
+                    context.insert(baseUrlVar)
+                    existingKeys.insert("baseUrl")
                 }
                 
                 createAuthVariables(
@@ -379,20 +381,26 @@ final class OpenAPIImporter {
                 context.insert(env)
                 
                 var existingKeys = Set<String>()
-                
+
+                // Process server-defined variables first so they take priority
+                for variable in server.variables {
+                    if !existingKeys.contains(variable.name) {
+                        let v = Variable(key: variable.name, value: variable.defaultValue, isSecret: false, isEnabled: true)
+                        v.environment = env
+                        context.insert(v)
+                        existingKeys.insert(variable.name)
+                    }
+                }
+
+                // Only create auto-generated baseUrl if the server didn't define one
                 let rawURL = server.url.hasSuffix("/") ? String(server.url.dropLast()) : server.url
                 let convertedURL = convertServerURLVariables(rawURL)
-                
-                let baseUrlVar = Variable(key: "baseUrl", value: convertedURL, isSecret: false, isEnabled: true)
-                baseUrlVar.environment = env
-                context.insert(baseUrlVar)
-                existingKeys.insert("baseUrl")
-                
-                for variable in server.variables {
-                    let v = Variable(key: variable.name, value: variable.defaultValue, isSecret: false, isEnabled: true)
-                    v.environment = env
-                    context.insert(v)
-                    existingKeys.insert(variable.name)
+
+                if !existingKeys.contains("baseUrl") {
+                    let baseUrlVar = Variable(key: "baseUrl", value: convertedURL, isSecret: false, isEnabled: true)
+                    baseUrlVar.environment = env
+                    context.insert(baseUrlVar)
+                    existingKeys.insert("baseUrl")
                 }
                 
                 createAuthVariables(

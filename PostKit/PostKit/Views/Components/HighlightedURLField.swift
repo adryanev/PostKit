@@ -81,9 +81,11 @@ struct HighlightedURLField: NSViewRepresentable {
 
         if text != context.coordinator.lastWrittenText {
             context.coordinator.isUpdatingFromSwiftUI = true
-            let selectedRanges = textView.selectedRanges
             textView.string = text
-            textView.selectedRanges = selectedRanges
+            // Place caret at end-of-text; restoring old selection is unsafe
+            // if the new text is shorter (would cause NSRangeException).
+            let endOfText = (text as NSString).length
+            textView.setSelectedRange(NSRange(location: endOfText, length: 0))
             context.coordinator.lastWrittenText = text
             applyHighlighting(to: textView)
             context.coordinator.isUpdatingFromSwiftUI = false

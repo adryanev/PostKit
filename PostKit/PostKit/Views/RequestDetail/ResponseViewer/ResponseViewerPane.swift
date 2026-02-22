@@ -21,6 +21,18 @@ struct ResponseViewerPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            Picker("Response Tab", selection: $activeTab) {
+                ForEach(ResponseTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .padding(8)
+            .disabled(response == nil && error == nil)
+
+            Divider()
+
             if isLoading {
                 ProgressView("Sending request...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

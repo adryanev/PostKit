@@ -36,18 +36,6 @@ struct RequestDetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Picker("Response Tab", selection: activeTabBinding) {
-                    ForEach(ResponseTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-                .disabled(viewModel?.response == nil && viewModel?.error == nil)
-            }
-        }
         .focusedValue(\.sendRequestAction, { viewModel?.sendRequest(for: request) })
         .focusedValue(\.cancelRequestAction, { viewModel?.cancelRequest() })
         .onAppear {

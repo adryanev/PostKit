@@ -2855,8 +2855,10 @@ struct OpenAPIImporterTests {
         let importer = OpenAPIImporter()
         let collection = try importer.importNewCollection(spec: spec, selectedEndpoints: [], into: context)
         
-        #expect(collection.environments[0].isActive == true)
-        #expect(collection.environments[1].isActive == false)
+        let firstEnv = collection.environments.first { $0.openAPIServerURL == "https://api.example.com/v1" }
+        let secondEnv = collection.environments.first { $0.openAPIServerURL == "https://api2.example.com/v1" }
+        #expect(firstEnv?.isActive == true)
+        #expect(secondEnv?.isActive == false)
     }
     
     @Test func importCreatesBaseUrlVariable() throws {
@@ -3097,7 +3099,7 @@ struct OpenAPIImporterTests {
         let descriptor = FetchDescriptor<Variable>()
         let variables = try context.fetch(descriptor)
         
-        #expect(variables.count >= 3)
+        #expect(variables.count == 3)
         #expect(variables.contains { $0.key == "baseUrl" })
         #expect(variables.contains { $0.key == "port" })
         #expect(variables.contains { $0.key == "bearerToken" })

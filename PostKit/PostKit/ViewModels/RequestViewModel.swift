@@ -217,8 +217,8 @@ final class RequestViewModel {
 
     // MARK: - Auth (delegates to RequestBuilder)
 
-    func applyAuth(_ urlRequest: inout URLRequest, authConfig: AuthConfig) {
-        requestBuilder.applyAuth(&urlRequest, authConfig: authConfig)
+    func applyAuth(_ urlRequest: inout URLRequest, authConfig: AuthConfig, variables: [String: String] = [:]) {
+        requestBuilder.applyAuth(&urlRequest, authConfig: authConfig, variables: variables)
     }
 
     // MARK: - History

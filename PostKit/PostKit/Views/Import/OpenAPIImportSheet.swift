@@ -423,7 +423,8 @@ struct EnvironmentPreviewCard: View {
                 break
             }
         }
-        return types
+        var seen = Set<String>()
+        return types.filter { seen.insert($0).inserted }
     }
     
     private var baseURLDisplay: String {
@@ -636,6 +637,7 @@ struct EndpointRow: View {
                 set: { onToggle($0) }
             ))
             .toggleStyle(.checkbox)
+            .allowsHitTesting(false)
             
             Text(endpoint.method.rawValue)
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
