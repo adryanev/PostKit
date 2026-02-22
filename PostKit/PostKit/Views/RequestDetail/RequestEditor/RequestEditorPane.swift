@@ -14,7 +14,9 @@ struct RequestEditorPane: View {
     }
     
     private var detectedPathVariables: [String] {
-        let pattern = #"\{\{([^}]+)\}\}"#
+        // Path variables use :varName syntax (e.g., /users/:id)
+        // {{varName}} are environment variables, not path variables
+        let pattern = #"(?<=/):([a-zA-Z_][a-zA-Z0-9_]*)"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(request.urlTemplate.startIndex..., in: request.urlTemplate)
         let matches = regex.matches(in: request.urlTemplate, range: range)
@@ -34,6 +36,7 @@ struct RequestEditorPane: View {
                     Text(tab.rawValue).tag(tab)
                 }
             }
+            .labelsHidden()
             .pickerStyle(.segmented)
             .padding(12)
             
@@ -181,9 +184,9 @@ struct PathVariableRow: View {
     
     var body: some View {
         HStack {
-            Text("{{\(varName)}}")
+            Text(":\(varName)")
                 .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.orange)
+                .foregroundStyle(.purple)
                 .frame(width: 150, alignment: .leading)
                 .padding(.horizontal, 8)
             
@@ -388,7 +391,7 @@ struct ScriptEditor: View {
     let title: String
     let description: String
     @Binding var script: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -396,20 +399,25 @@ struct ScriptEditor: View {
                     .font(.headline)
                 Spacer()
             }
-            
+
             Text(description)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            
+
             CodeTextView(
                 text: $script,
                 language: "javascript",
                 isEditable: true
             )
-            .frame(maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .textBackgroundColor))
-            .cornerRadius(6)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+            )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(12)
     }
 }
