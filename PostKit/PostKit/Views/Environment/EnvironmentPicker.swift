@@ -8,41 +8,40 @@ struct EnvironmentPicker: View {
     @State private var showingEnvironmentEditor = false
     
     var body: some View {
-        HStack(spacing: 8) {
-            Picker("", selection: $selectedEnvironment) {
-                Text("No Environment").tag(nil as APIEnvironment?)
-                
-                Divider()
-                
-                ForEach(allEnvironments) { env in
-                    HStack {
-                        Text(env.name)
-                        if env.isActive {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    .tag(env as APIEnvironment?)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(minWidth: 120, alignment: .leading)
+        Picker("", selection: $selectedEnvironment) {
+            Text("No Environment").tag(nil as APIEnvironment?)
             
-            Button {
-                showingEnvironmentEditor = true
-            } label: {
-                Image(systemName: "gear")
-                    .font(.system(size: 12, weight: .medium))
+            Divider()
+            
+            ForEach(allEnvironments) { env in
+                HStack {
+                    Text(env.name)
+                    if env.isActive {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .tag(env as APIEnvironment?)
             }
-            .buttonStyle(.borderless)
-            .help("Manage Environments")
+            
+            Divider()
+            
+            Text("Manage Environments...")
+                .tag(EnvironmentSelection.manage)
         }
+        .pickerStyle(.menu)
+        .frame(minWidth: 120, alignment: .leading)
         .onAppear {
             selectedEnvironment = activeEnvironments.first.map { EnvironmentSelection.environment($0) } ?? nil
         }
         .onChange(of: selectedEnvironment) { newValue in
-            if let env = newValue {
+            switch newValue {
+            case .manage:
+                showingEnvironmentEditor = true
+                selectedEnvironment = activeEnvironments.first.map { EnvironmentSelection.environment($0) }
+            case .environment(let env):
                 selectEnvironment(env)
-            } else {
+            case .none:
                 deactivateAllEnvironments()
             }
         }
