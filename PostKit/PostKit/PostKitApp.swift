@@ -44,7 +44,9 @@ struct PostKitApp: App {
     @State private var showingImportCollection = false
     @State private var showingPostmanImport = false
     @State private var postmanEnvironmentCollection: RequestCollection?
-    
+    @State private var showingCommandPalette = false
+    @State private var commandPaletteViewModel: CommandPaletteViewModel?
+
     init() {
         Task.detached(priority: .background) {
             cleanupStaleTempFiles()
@@ -92,32 +94,59 @@ struct PostKitApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .sheet(item: $curlImportCollection) { collection in
-                    CurlImportSheet(collection: collection)
-                }
-                .sheet(isPresented: $showingOpenAPIImport) {
-                    OpenAPIImportSheet()
-                }
-                .sheet(isPresented: $showingPostmanImport) {
-                    PostmanImportSheet()
-                }
-                .sheet(item: $postmanEnvironmentCollection) { collection in
-                    PostmanEnvironmentImportSheet(collection: collection)
-                }
-                .fileImporter(
-                    isPresented: $showingImportCollection,
-                    allowedContentTypes: [.json],
-                    allowsMultipleSelection: false
-                ) { result in
-                    if case .success(let urls) = result, let url = urls.first {
-                        try? importCollection(from: url)
+            ZStack {
+                ContentView()
+                    .sheet(item: $curlImportCollection) { collection in
+                        CurlImportSheet(collection: collection)
                     }
+                    .sheet(isPresented: $showingOpenAPIImport) {
+                        OpenAPIImportSheet()
+                    }
+                    .sheet(isPresented: $showingPostmanImport) {
+                        PostmanImportSheet()
+                    }
+                    .sheet(item: $postmanEnvironmentCollection) { collection in
+                        PostmanEnvironmentImportSheet(collection: collection)
+                    }
+                    .fileImporter(
+                        isPresented: $showingImportCollection,
+                        allowedContentTypes: [.json],
+                        allowsMultipleSelection: false
+                    ) { result in
+                        if case .success(let urls) = result, let url = urls.first {
+                            try? importCollection(from: url)
+                        }
+                    }
+
+                // Command Palette Overlay
+                if showingCommandPalette, let viewModel = commandPaletteViewModel {
+                    CommandPalette(
+                        viewModel: viewModel,
+                        onDismiss: {
+                            showingCommandPalette = false
+                        }
+                    )
+                    .zIndex(1000)
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSelection)) { notification in
+                handleCommandPaletteSelection(notification)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteAction)) { notification in
+                handleCommandPaletteAction(notification)
+            }
         }
         .modelContainer(sharedModelContainer)
         .commands {
             PostKitCommands()
+
+            CommandGroup(replacing: .appInfo) {
+                Button("Command Palette") {
+                    showCommandPalette()
+                }
+                .keyboardShortcut(KeyboardShortcuts.commandPalette, modifiers: KeyboardShortcuts.commandModifiers)
+            }
+
             CommandGroup(after: .newItem) {
                 Button("Import cURL Command...") {
                     curlImportCollection = fetchOrCreateImportCollection()
@@ -169,4 +198,51 @@ struct PostKitApp: App {
         let context = sharedModelContainer.mainContext
         _ = try exporter.importCollection(from: url, into: context)
     }
+
+    // MARK: - Command Palette
+
+    private func showCommandPalette() {
+        let context = sharedModelContainer.mainContext
+        commandPaletteViewModel = CommandPaletteViewModel(modelContext: context)
+        commandPaletteViewModel?.show()
+        showingCommandPalette = true
+    }
+
+    private func handleCommandPaletteSelection(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let selection = userInfo["selection"] as? SidebarSelection else { return }
+
+        // Post to the main window to handle selection
+        NotificationCenter.default.post(
+            name: .sidebarSelectionChange,
+            object: nil,
+            userInfo: ["selection": selection]
+        )
+    }
+
+    private func handleCommandPaletteAction(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let action = userInfo["action"] as? CommandPaletteAction else { return }
+
+        switch action {
+        case .newRequest:
+            curlImportCollection = fetchOrCreateImportCollection()
+        case .newCollection:
+            // Create a new collection - this would need UI handling
+            // For now, just close the palette
+            showingCommandPalette = false
+        case .importCurl:
+            curlImportCollection = fetchOrCreateImportCollection()
+        case .importOpenAPI:
+            showingOpenAPIImport = true
+        case .importPostman:
+            showingPostmanImport = true
+        }
+    }
+}
+
+// MARK: - Sidebar Selection Notification
+
+extension Notification.Name {
+    static let sidebarSelectionChange = Notification.Name("sidebarSelectionChange")
 }

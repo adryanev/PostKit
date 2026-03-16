@@ -20,7 +20,7 @@ struct ContentView: View {
     enum Pane: Hashable {
         case sidebar, detail
     }
-    
+
     @Query private var allRequests: [HTTPRequest]
 
     var body: some View {
@@ -37,6 +37,9 @@ struct ContentView: View {
             ToolbarItem(placement: .automatic) {
                 EnvironmentPicker()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .sidebarSelectionChange)) { notification in
+            handleSidebarSelectionChange(notification)
         }
         .onKeyPress(.tab) {
             if NSEvent.modifierFlags.contains(.control) {
@@ -114,11 +117,21 @@ struct ContentView: View {
     private func handleSpotlightActivity(_ userActivity: NSUserActivity) {
         guard let identifierString = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
               let identifier = UUID(uuidString: identifierString) else { return }
-        
+
         if let request = allRequests.first(where: { $0.id == identifier }) {
             selectedSidebarItem = .request(request)
             NSApp.activate()
         }
+    }
+
+    private func handleSidebarSelectionChange(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let selection = userInfo["selection"] as? SidebarSelection else { return }
+
+        selectedSidebarItem = selection
+
+        // Activate the app to bring it to front
+        NSApp.activate()
     }
 }
 

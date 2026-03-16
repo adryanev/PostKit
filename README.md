@@ -67,13 +67,39 @@ Select the **PostKit** scheme and build with `Cmd+B`, or run with `Cmd+R`.
 
 | Shortcut | Action |
 |---|---|
+| `Cmd+K` | Open command palette |
 | `Cmd+Enter` | Send request |
 | `Cmd+.` | Cancel request |
 | `Cmd+D` | Duplicate request |
+| `Cmd+S` | Save request |
+| `Cmd+N` | New request |
+| `Cmd+Shift+N` | New collection |
 | `Cmd+Shift+I` | Import cURL command |
 | `Cmd+Shift+O` | Import OpenAPI spec |
 | `Cmd+Option+I` | Import collection |
 | `Ctrl+Tab` | Cycle focus between panes |
+| `/` | Focus search field |
+
+### Command Palette
+
+The command palette (`Cmd+K`) provides fuzzy search for:
+- Requests (search by name, method, URL)
+- Collections
+- Folders
+- Actions (New Request, Import, etc.)
+
+**Navigation in Command Palette:**
+- `↑` / `↓` - Navigate through results
+- `Enter` - Select item
+- `Esc` - Close
+- Type - Filter results
+
+**Vim Mode (toggle in palette):**
+- `j` - Move down
+- `k` - Move up
+- `Enter` - Select
+- `Esc` - Close
+- `/` - Focus search |
 
 ## Architecture
 
