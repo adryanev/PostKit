@@ -7,6 +7,7 @@ enum SidebarSelection: Hashable {
     case collection(RequestCollection)
     case folder(Folder)
     case request(HTTPRequest)
+    case chain(RequestChain)
 }
 
 struct ContentView: View {
@@ -92,6 +93,8 @@ struct ContentView: View {
             FolderDetailView(folder: folder)
         case .request(let request):
             RequestDetailView(request: request)
+        case .chain(let chain):
+            ChainBuilderView(chain: chain, modelContext: modelContext)
         case .none:
             ContentUnavailableView(
                 "Select an Item",

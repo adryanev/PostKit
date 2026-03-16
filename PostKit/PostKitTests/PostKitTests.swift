@@ -3166,3 +3166,616 @@ struct RequestBuilderAuthInterpolationTests {
     }
 }
 
+
+// MARK: - ResponseExtractor Tests
+
+struct ResponseExtractorTests {
+    let extractor = ResponseExtractor()
+    
+    // MARK: - JSONPath Extraction Tests
+    
+    @Test func extractJSONPathSimple() throws {
+        let json = #"{"name": "Alice", "age": 30}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Name", extractionType: .jsonPath, pattern: "$.name", variableName: "userName")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "Alice")
+    }
+    
+    @Test func extractJSONPathNested() throws {
+        let json = #"{"data": {"user": {"token": "abc123"}}}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Token", extractionType: .jsonPath, pattern: "$.data.user.token", variableName: "authToken")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "abc123")
+    }
+    
+    @Test func extractJSONPathArrayIndex() throws {
+        let json = #"{"items": [{"id": 1}, {"id": 2}, {"id": 3}]}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "First ID", extractionType: .jsonPath, pattern: "$.items[0].id", variableName: "firstId")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "1")
+    }
+    
+    @Test func extractJSONPathNotFound() throws {
+        let json = #"{"name": "Alice"}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Missing", extractionType: .jsonPath, pattern: "$.missing", variableName: "missing")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(throws: ExtractionError.valueNotFound(_)) {
+            try result.get()
+        }
+    }
+    
+    @Test func extractJSONPathWithDefault() throws {
+        let json = #"{"name": "Alice"}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        var rule = ExtractionRule(name: "Missing", extractionType: .jsonPath, pattern: "$.missing", variableName: "missing")
+        rule.defaultValue = "default-value"
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "default-value")
+    }
+    
+    // MARK: - Regex Extraction Tests
+    
+    @Test func extractRegexCaptureGroup() throws {
+        let body = #"{"token": "abc123def", "user": "test"}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: body.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(body.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Token", extractionType: .regex, pattern: #"token":\s*"([^"]+)""#, variableName: "token")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "abc123def")
+    }
+    
+    @Test func extractRegexNoCaptureGroup() throws {
+        let body = "Session ID: ABC123XYZ"
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: body.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(body.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Session", extractionType: .regex, pattern: "[A-Z]{3}[0-9]{3}[A-Z]{3}", variableName: "sessionId")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "ABC123XYZ")
+    }
+    
+    @Test func extractRegexNotFound() throws {
+        let body = "No match here"
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: body.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(body.count),
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Missing", extractionType: .regex, pattern: "token:\\s*\\w+", variableName: "token")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(throws: ExtractionError.valueNotFound(_)) {
+            try result.get()
+        }
+    }
+    
+    // MARK: - Header Extraction Tests
+    
+    @Test func extractHeaderSimple() throws {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["X-Auth-Token": "my-secret-token", "Content-Type": "application/json"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Token", extractionType: .header, pattern: "X-Auth-Token", variableName: "authToken")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "my-secret-token")
+    }
+    
+    @Test func extractHeaderCaseInsensitive() throws {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["x-auth-token": "my-secret-token"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Token", extractionType: .header, pattern: "X-Auth-Token", variableName: "authToken")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "my-secret-token")
+    }
+    
+    @Test func extractHeaderNotFound() throws {
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["Content-Type": "application/json"],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Missing", extractionType: .header, pattern: "X-Missing-Header", variableName: "missing")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(throws: ExtractionError.valueNotFound(_)) {
+            try result.get()
+        }
+    }
+    
+    // MARK: - Status Code Extraction Tests
+    
+    @Test func extractStatusCode() throws {
+        let response = HTTPResponse(
+            statusCode: 201,
+            statusMessage: "Created",
+            headers: [:],
+            body: nil,
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: 0,
+            timingBreakdown: nil
+        )
+        
+        let rule = ExtractionRule(name: "Status", extractionType: .statusCode, pattern: "", variableName: "statusCode")
+        
+        let result = extractor.extract(from: response, using: rule)
+        #expect(try result.get() == "201")
+    }
+    
+    // MARK: - Extract All Tests
+    
+    @Test func extractAllMultipleRules() throws {
+        let json = #"{"token": "abc123", "userId": 42}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: ["X-Request-Id": "req-001"],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        let rules = [
+            ExtractionRule(name: "Token", extractionType: .jsonPath, pattern: "$.token", variableName: "token"),
+            ExtractionRule(name: "User ID", extractionType: .jsonPath, pattern: "$.userId", variableName: "userId"),
+            ExtractionRule(name: "Request ID", extractionType: .header, pattern: "X-Request-Id", variableName: "requestId"),
+            ExtractionRule(name: "Status", extractionType: .statusCode, pattern: "", variableName: "status")
+        ]
+        
+        let result = extractor.extractAll(from: response, using: rules)
+        
+        #expect(result.extractedValues["token"] == "abc123")
+        #expect(result.extractedValues["userId"] == "42")
+        #expect(result.extractedValues["requestId"] == "req-001")
+        #expect(result.extractedValues["status"] == "200")
+        #expect(result.isSuccess)
+    }
+    
+    @Test func extractAllSkipsDisabledRules() throws {
+        let json = #"{"token": "abc123"}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        var disabledRule = ExtractionRule(name: "Disabled", extractionType: .jsonPath, pattern: "$.token", variableName: "disabled")
+        disabledRule.isEnabled = false
+        
+        let rules = [
+            ExtractionRule(name: "Token", extractionType: .jsonPath, pattern: "$.token", variableName: "token"),
+            disabledRule
+        ]
+        
+        let result = extractor.extractAll(from: response, using: rules)
+        
+        #expect(result.extractedValues.count == 1)
+        #expect(result.extractedValues["token"] == "abc123")
+        #expect(result.extractedValues["disabled"] == nil)
+    }
+    
+    @Test func extractAllSkipsEmptyVariableNames() throws {
+        let json = #"{"token": "abc123"}"#
+        let response = HTTPResponse(
+            statusCode: 200,
+            statusMessage: "OK",
+            headers: [:],
+            body: json.data(using: .utf8),
+            bodyFileURL: nil,
+            duration: 0.1,
+            size: Int64(json.count),
+            timingBreakdown: nil
+        )
+        
+        let rules = [
+            ExtractionRule(name: "Token", extractionType: .jsonPath, pattern: "$.token", variableName: "token"),
+            ExtractionRule(name: "No Variable", extractionType: .jsonPath, pattern: "$.token", variableName: "")
+        ]
+        
+        let result = extractor.extractAll(from: response, using: rules)
+        
+        #expect(result.extractedValues.count == 1)
+        #expect(result.extractedValues["token"] == "abc123")
+    }
+}
+
+// MARK: - ExtractionType Tests
+
+struct ExtractionTypeTests {
+    @Test func extractionTypeDisplayNames() {
+        #expect(ExtractionType.jsonPath.displayName == "JSONPath")
+        #expect(ExtractionType.regex.displayName == "Regex")
+        #expect(ExtractionType.header.displayName == "Header")
+        #expect(ExtractionType.statusCode.displayName == "Status Code")
+    }
+    
+    @Test func extractionTypeRawValues() {
+        #expect(ExtractionType.jsonPath.rawValue == "jsonpath")
+        #expect(ExtractionType.regex.rawValue == "regex")
+        #expect(ExtractionType.header.rawValue == "header")
+        #expect(ExtractionType.statusCode.rawValue == "status-code")
+    }
+    
+    @Test func extractionTypeCaseIterable() {
+        #expect(ExtractionType.allCases.count == 4)
+    }
+    
+    @Test func extractionTypePlaceholders() {
+        #expect(ExtractionType.jsonPath.placeholder == "$.data.token")
+        #expect(ExtractionType.regex.placeholder == #"token":"([^"]+)""#)
+        #expect(ExtractionType.header.placeholder == "X-Auth-Token")
+        #expect(ExtractionType.statusCode.placeholder == "200")
+    }
+}
+
+// MARK: - ExtractionRule Tests
+
+struct ExtractionRuleTests {
+    @Test func extractionRuleDefaultValues() {
+        let rule = ExtractionRule()
+        #expect(rule.name == "")
+        #expect(rule.extractionType == .jsonPath)
+        #expect(rule.pattern == "")
+        #expect(rule.variableName == "")
+        #expect(rule.defaultValue == nil)
+        #expect(rule.isEnabled == true)
+    }
+    
+    @Test func extractionRuleCustomValues() {
+        let rule = ExtractionRule(
+            name: "Token",
+            extractionType: .regex,
+            pattern: #"token":"([^"]+)""#,
+            variableName: "authToken",
+            defaultValue: "fallback"
+        )
+        #expect(rule.name == "Token")
+        #expect(rule.extractionType == .regex)
+        #expect(rule.pattern == #"token":"([^"]+)""#)
+        #expect(rule.variableName == "authToken")
+        #expect(rule.defaultValue == "fallback")
+    }
+    
+    @Test func extractionRuleDuplicate() {
+        let original = ExtractionRule(
+            name: "Token",
+            extractionType: .jsonPath,
+            pattern: "$.token",
+            variableName: "token",
+            defaultValue: "default"
+        )
+        original.sortOrder = 5
+        
+        let copy = original.duplicated()
+        
+        #expect(copy.name == original.name)
+        #expect(copy.extractionType == original.extractionType)
+        #expect(copy.pattern == original.pattern)
+        #expect(copy.variableName == original.variableName)
+        #expect(copy.defaultValue == original.defaultValue)
+        #expect(copy.id != original.id) // Should be a new instance
+    }
+    
+    @Test func extractionRuleEncodeDecode() throws {
+        let rules = [
+            ExtractionRule(name: "Token", extractionType: .jsonPath, pattern: "$.token", variableName: "token"),
+            ExtractionRule(name: "Status", extractionType: .statusCode, pattern: "", variableName: "status", isEnabled: false)
+        ]
+        
+        let data = rules.encode()
+        #expect(data != nil)
+        
+        let decoded = [ExtractionRule].decode(from: data)
+        #expect(decoded.count == 2)
+        #expect(decoded[0].name == "Token")
+        #expect(decoded[0].extractionType == .jsonPath)
+        #expect(decoded[1].name == "Status")
+        #expect(decoded[1].isEnabled == false)
+    }
+}
+
+// MARK: - ChainStep Tests
+
+struct ChainStepTests {
+    @Test func chainStepDefaultValues() {
+        let step = ChainStep()
+        #expect(step.name == "")
+        #expect(step.requestID == nil)
+        #expect(step.stepOrder == 0)
+        #expect(step.isEnabled == true)
+        #expect(step.continueOnError == false)
+        #expect(step.delayMs == 0)
+        #expect(step.extractionRules.isEmpty)
+    }
+    
+    @Test func chainStepCustomValues() {
+        let requestID = UUID()
+        let step = ChainStep(
+            name: "Get Token",
+            requestID: requestID,
+            stepOrder: 2,
+            isEnabled: true,
+            continueOnError: true,
+            delayMs: 500
+        )
+        
+        #expect(step.name == "Get Token")
+        #expect(step.requestID == requestID)
+        #expect(step.stepOrder == 2)
+        #expect(step.continueOnError == true)
+        #expect(step.delayMs == 500)
+    }
+    
+    @Test func chainStepExtractionRulesEncodeDecode() {
+        let step = ChainStep(name: "Test")
+        let rule1 = ExtractionRule(name: "Token", extractionType: .jsonPath, pattern: "$.token", variableName: "token")
+        let rule2 = ExtractionRule(name: "User", extractionType: .jsonPath, pattern: "$.user", variableName: "user")
+        
+        step.extractionRules = [rule1, rule2]
+        
+        #expect(step.extractionRules.count == 2)
+        #expect(step.extractionRules[0].name == "Token")
+        #expect(step.extractionRules[1].name == "User")
+    }
+    
+    @Test func chainStepDuplicate() {
+        let requestID = UUID()
+        let step = ChainStep(name: "Original", requestID: requestID, stepOrder: 3)
+        step.extractionRules = [ExtractionRule(name: "Rule", extractionType: .jsonPath, pattern: "$.val", variableName: "val")]
+        
+        let copy = step.duplicated()
+        
+        #expect(copy.name == "Original")
+        #expect(copy.requestID == requestID)
+        #expect(copy.stepOrder == 3)
+        #expect(copy.extractionRules.count == 1)
+        #expect(copy.id != step.id)
+    }
+}
+
+// MARK: - RequestChain Tests
+
+struct RequestChainTests {
+    @Test func requestChainDefaultValues() {
+        let chain = RequestChain(name: "Test Chain")
+        #expect(chain.name == "Test Chain")
+        #expect(chain.description == nil)
+        #expect(chain.isEnabled == true)
+        #expect(chain.steps.isEmpty)
+        #expect(chain.history.isEmpty)
+    }
+    
+    @Test func requestChainWithDescription() {
+        let chain = RequestChain(name: "Auth Flow", description: "Authentication sequence")
+        #expect(chain.name == "Auth Flow")
+        #expect(chain.description == "Authentication sequence")
+    }
+    
+    @Test func requestChainSortedSteps() {
+        let chain = RequestChain(name: "Test")
+        let step1 = ChainStep(name: "Step 1", stepOrder: 0)
+        let step2 = ChainStep(name: "Step 2", stepOrder: 1)
+        let step3 = ChainStep(name: "Step 3", stepOrder: 2)
+        
+        // Add in reverse order
+        step3.chain = chain
+        step1.chain = chain
+        step2.chain = chain
+        
+        let sorted = chain.sortedSteps
+        #expect(sorted.count == 3)
+        #expect(sorted[0].name == "Step 1")
+        #expect(sorted[1].name == "Step 2")
+        #expect(sorted[2].name == "Step 3")
+    }
+    
+    @Test func requestChainDuplicate() {
+        let chain = RequestChain(name: "Original", description: "Test chain")
+        let step1 = ChainStep(name: "Step 1", stepOrder: 0)
+        step1.chain = chain
+        
+        let copy = chain.duplicated()
+        
+        #expect(copy.name == "Original (Copy)")
+        #expect(copy.description == "Test chain")
+        #expect(copy.steps.count == 1)
+        #expect(copy.id != chain.id)
+        #expect(copy.steps[0].id != chain.steps[0].id)
+    }
+}
+
+// MARK: - ChainExecutionStatus Tests
+
+struct ChainExecutionStatusTests {
+    @Test func chainExecutionStatusDisplayNames() {
+        #expect(ChainExecutionStatus.pending.displayName == "Pending")
+        #expect(ChainExecutionStatus.running.displayName == "Running")
+        #expect(ChainExecutionStatus.completed.displayName == "Completed")
+        #expect(ChainExecutionStatus.failed.displayName == "Failed")
+        #expect(ChainExecutionStatus.cancelled.displayName == "Cancelled")
+    }
+    
+    @Test func chainExecutionStatusRawValues() {
+        #expect(ChainExecutionStatus.pending.rawValue == "pending")
+        #expect(ChainExecutionStatus.running.rawValue == "running")
+        #expect(ChainExecutionStatus.completed.rawValue == "completed")
+        #expect(ChainExecutionStatus.failed.rawValue == "failed")
+        #expect(ChainExecutionStatus.cancelled.rawValue == "cancelled")
+    }
+}
+
+// MARK: - ChainStepResult Tests
+
+struct ChainStepResultTests {
+    @Test func chainStepResultSuccess() {
+        let stepId = UUID()
+        let result = ChainStepResult(
+            stepId: stepId,
+            stepName: "Get Token",
+            statusCode: 200,
+            durationMs: 150,
+            success: true,
+            extractedValues: ["token": "abc123"]
+        )
+        
+        #expect(result.stepId == stepId)
+        #expect(result.stepName == "Get Token")
+        #expect(result.statusCode == 200)
+        #expect(result.durationMs == 150)
+        #expect(result.success == true)
+        #expect(result.errorMessage == nil)
+        #expect(result.extractedValues["token"] == "abc123")
+    }
+    
+    @Test func chainStepResultFailure() {
+        let stepId = UUID()
+        let result = ChainStepResult(
+            stepId: stepId,
+            stepName: "Get User",
+            durationMs: 50,
+            success: false,
+            errorMessage: "Connection timeout"
+        )
+        
+        #expect(result.success == false)
+        #expect(result.statusCode == nil)
+        #expect(result.errorMessage == "Connection timeout")
+        #expect(result.extractedValues.isEmpty)
+    }
+    
+    @Test func chainStepResultCodable() throws {
+        let result = ChainStepResult(
+            stepId: UUID(),
+            stepName: "Test",
+            statusCode: 201,
+            durationMs: 100,
+            success: true,
+            extractedValues: ["key": "value"]
+        )
+        
+        let data = try JSONEncoder().encode(result)
+        let decoded = try JSONDecoder().decode(ChainStepResult.self, from: data)
+        
+        #expect(decoded.stepName == result.stepName)
+        #expect(decoded.statusCode == result.statusCode)
+        #expect(decoded.durationMs == result.durationMs)
+        #expect(decoded.success == result.success)
+        #expect(decoded.extractedValues["key"] == "value")
+    }
+}

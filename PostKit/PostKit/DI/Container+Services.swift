@@ -46,4 +46,14 @@ extension Container {
         self { @MainActor in CloudKitSync() }
             .scope(.singleton)
     }
+
+    // MARK: - Chain Services
+
+    nonisolated var responseExtractor: Factory<ResponseExtractorProtocol> {
+        self { ResponseExtractor() }
+    }
+
+    nonisolated var chainExecutor: Factory<ChainExecutorService> {
+        self { ChainExecutorService() }
+    }
 }
