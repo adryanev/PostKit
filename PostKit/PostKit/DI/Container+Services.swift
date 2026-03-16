@@ -36,4 +36,8 @@ extension Container {
     nonisolated var requestBuilder: Factory<RequestBuilder> {
         self { RequestBuilder() }
     }
+
+    nonisolated var codeGenerator: Factory<CodeGenerator> {
+        self { CodeGenerator() }
+    }
 }

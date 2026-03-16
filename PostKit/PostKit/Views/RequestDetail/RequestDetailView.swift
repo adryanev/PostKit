@@ -5,16 +5,29 @@ struct RequestDetailView: View {
     @Bindable var request: HTTPRequest
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: RequestViewModel?
+    @State private var showCodeGenerator = false
 
     var body: some View {
         VStack(spacing: 0) {
-            URLBar(
-                method: $request.method,
-                url: $request.urlTemplate,
-                isSending: viewModel?.isSending ?? false,
-                onSend: { viewModel?.sendRequest(for: request) },
-                onCancel: { viewModel?.cancelRequest() }
-            )
+            HStack(spacing: 0) {
+                URLBar(
+                    method: $request.method,
+                    url: $request.urlTemplate,
+                    isSending: viewModel?.isSending ?? false,
+                    onSend: { viewModel?.sendRequest(for: request) },
+                    onCancel: { viewModel?.cancelRequest() }
+                )
+                .layoutPriority(1)
+
+                Button(action: { showCodeGenerator = true }) {
+                    Image(systemName: "code")
+                        .frame(width: 28, height: 28)
+                }
+                .help("Generate Code")
+                .buttonStyle(.plain)
+                .padding(.trailing, 12)
+                .keyboardShortcut("C", modifiers: [.command, .shift])
+            }
 
             Divider()
 
@@ -38,6 +51,9 @@ struct RequestDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .focusedValue(\.sendRequestAction, { viewModel?.sendRequest(for: request) })
         .focusedValue(\.cancelRequestAction, { viewModel?.cancelRequest() })
+        .sheet(isPresented: $showCodeGenerator) {
+            CodeGeneratorView(request: request)
+        }
         .onAppear {
             if viewModel == nil {
                 viewModel = RequestViewModel(modelContext: modelContext)
