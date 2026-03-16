@@ -3,6 +3,7 @@ import SwiftData
 import UniformTypeIdentifiers
 import os
 import FactoryKit
+import CloudKit
 
 private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "PostKitApp")
 
@@ -75,15 +76,22 @@ struct PostKitApp: App {
             ResponseExample.self
         ])
         
-        #if ICLOUD_SYNC
-        let modelConfiguration = ModelConfiguration(
-            "PostKit",
-            schema: schema,
-            cloudKitDatabase: .automatic
-        )
-        #else
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        #endif
+        // Check if iCloud sync is enabled
+        let iCloudSyncEnabled = UserDefaults.standard.bool(forKey: "CloudKitSyncEnabled")
+        
+        let modelConfiguration: ModelConfiguration
+        if iCloudSyncEnabled {
+            // Use CloudKit for sync when enabled
+            modelConfiguration = ModelConfiguration(
+                "PostKit",
+                schema: schema,
+                cloudKitDatabase: .private("iCloud.dev.adryanev.PostKit")
+            )
+            os_log(.info, log: log, "SwiftData configured with CloudKit sync enabled")
+        } else {
+            // Local-only storage
+            modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        }
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -145,6 +153,13 @@ struct PostKitApp: App {
                     showCommandPalette()
                 }
                 .keyboardShortcut(KeyboardShortcuts.commandPalette, modifiers: KeyboardShortcuts.commandModifiers)
+                
+                Divider()
+                
+                Button("Settings...") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
             }
 
             CommandGroup(after: .newItem) {
@@ -177,6 +192,11 @@ struct PostKitApp: App {
         }
         .menuBarExtraStyle(.menu)
         .modelContainer(sharedModelContainer)
+        
+        // Settings window
+        Settings {
+            SettingsView()
+        }
     }
     
     private func fetchOrCreateImportCollection() -> RequestCollection {

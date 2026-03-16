@@ -40,4 +40,10 @@ extension Container {
     nonisolated var codeGenerator: Factory<CodeGenerator> {
         self { CodeGenerator() }
     }
+
+    @MainActor
+    var cloudKitSync: Factory<CloudKitSyncProtocol> {
+        self { @MainActor in CloudKitSync() }
+            .scope(.singleton)
+    }
 }

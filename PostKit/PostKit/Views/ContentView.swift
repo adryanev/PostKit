@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
     @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
+    @ObservationIgnored @Injected(\.cloudKitSync) private var cloudKitSync
     private static var hasIndexedOnce = false
 
     enum Pane: Hashable {
@@ -36,6 +37,10 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 EnvironmentPicker()
+            }
+            
+            ToolbarItem(placement: .automatic) {
+                SyncStatusView(syncService: cloudKitSync)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarSelectionChange)) { notification in
