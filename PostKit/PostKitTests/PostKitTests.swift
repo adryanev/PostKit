@@ -3779,3 +3779,273 @@ struct ChainStepResultTests {
         #expect(decoded.extractedValues["key"] == "value")
     }
 }
+
+// MARK: - MockServer Tests
+
+struct MockServerTests {
+    @Test func mockServerInitialization() {
+        let server = MockServer(name: "Test Server", port: 3000)
+        
+        #expect(server.name == "Test Server")
+        #expect(server.port == 3000)
+        #expect(server.baseURL == "/")
+        #expect(server.isEnabled == true)
+        #expect(server.autoStart == false)
+        #expect(server.corsEnabled == true)
+        #expect(server.endpoints.isEmpty)
+    }
+    
+    @Test func mockServerServerURL() {
+        let server = MockServer(name: "API Mock", port: 8080)
+        
+        #expect(server.serverURL == "http://localhost:8080")
+    }
+    
+    @Test func mockServerDuplicate() {
+        let server = MockServer(name: "Original", port: 3000, description: "Test server")
+        let endpoint = MockEndpoint(path: "/users", method: .get, name: "Get Users")
+        endpoint.server = server
+        server.endpoints.append(endpoint)
+        
+        let copy = server.duplicated()
+        
+        #expect(copy.name == "Original (Copy)")
+        #expect(copy.description == "Test server")
+        #expect(copy.endpoints.count == 1)
+        #expect(copy.id != server.id)
+        #expect(copy.endpoints[0].id != endpoint.id)
+        #expect(copy.isEnabled == false)
+        #expect(copy.autoStart == false)
+    }
+    
+    @Test func mockServerFindMatchingEndpoint() {
+        let server = MockServer(name: "Test", port: 3000)
+        
+        let getUsersEndpoint = MockEndpoint(path: "/users", method: .get, name: "Get Users")
+        getUsersEndpoint.server = server
+        server.endpoints.append(getUsersEndpoint)
+        
+        let getUserEndpoint = MockEndpoint(path: "/users/{id}", method: .get, name: "Get User")
+        getUserEndpoint.server = server
+        server.endpoints.append(getUserEndpoint)
+        
+        let foundExact = server.findMatchingEndpoint(path: "/users", method: .get)
+        #expect(foundExact?.name == "Get Users")
+        
+        let foundParam = server.findMatchingEndpoint(path: "/users/123", method: .get)
+        #expect(foundParam?.name == "Get User")
+        
+        let notFound = server.findMatchingEndpoint(path: "/posts", method: .get)
+        #expect(notFound == nil)
+    }
+}
+
+// MARK: - MockEndpoint Tests
+
+struct MockEndpointTests {
+    @Test func mockEndpointInitialization() {
+        let endpoint = MockEndpoint(path: "/api/users", method: .post, name: "Create User")
+        
+        #expect(endpoint.path == "/api/users")
+        #expect(endpoint.method == .post)
+        #expect(endpoint.methodRaw == "POST")
+        #expect(endpoint.name == "Create User")
+        #expect(endpoint.isEnabled == true)
+    }
+    
+    @Test func mockEndpointDefaultName() {
+        let endpoint = MockEndpoint(path: "/items", method: .delete)
+        
+        #expect(endpoint.name == "DELETE /items")
+    }
+    
+    @Test func mockEndpointPathMatching() {
+        let endpoint = MockEndpoint(path: "/users/{id}/posts/{postId}", method: .get)
+        
+        #expect(endpoint.matches(requestPath: "/users/123/posts/456", requestMethod: .get) == true)
+        #expect(endpoint.matches(requestPath: "/users/123/posts", requestMethod: .get) == false)
+        #expect(endpoint.matches(requestPath: "/users/123/posts/456", requestMethod: .post) == false)
+    }
+    
+    @Test func mockEndpointExtractPathParameters() {
+        let endpoint = MockEndpoint(path: "/users/{id}/posts/{postId}", method: .get)
+        
+        let params = endpoint.extractPathParameters(from: "/users/123/posts/456")
+        
+        #expect(params["id"] == "123")
+        #expect(params["postId"] == "456")
+        #expect(params.count == 2)
+    }
+    
+    @Test func mockEndpointDuplicate() {
+        let endpoint = MockEndpoint(path: "/test", method: .get, name: "Test")
+        let response = MockResponse(name: "Success", statusCode: 200)
+        response.endpoint = endpoint
+        endpoint.responses.append(response)
+        
+        let copy = endpoint.duplicated()
+        
+        #expect(copy.name == "Test (Copy)")
+        #expect(copy.path == "/test")
+        #expect(copy.responses.count == 1)
+        #expect(copy.id != endpoint.id)
+        #expect(copy.responses[0].id != response.id)
+    }
+}
+
+// MARK: - MockResponse Tests
+
+struct MockResponseTests {
+    @Test func mockResponseInitialization() {
+        let response = MockResponse(
+            name: "Success",
+            statusCode: 200,
+            bodyContent: #"{"message":"ok"}"#,
+            bodyType: .json,
+            delayMs: 100,
+            isDefault: true
+        )
+        
+        #expect(response.name == "Success")
+        #expect(response.statusCode == 200)
+        #expect(response.bodyContent == #"{"message":"ok"}"#)
+        #expect(response.bodyType == .json)
+        #expect(response.delayMs == 100)
+        #expect(response.isDefault == true)
+    }
+    
+    @Test func mockResponseHeaders() {
+        let response = MockResponse(name: "Test")
+        response.headers = [
+            KeyValuePair(key: "Content-Type", value: "application/json"),
+            KeyValuePair(key: "X-Custom", value: "test")
+        ]
+        
+        #expect(response.headers.count == 2)
+        #expect(response.headers[0].key == "Content-Type")
+        #expect(response.headers[1].value == "test")
+    }
+    
+    @Test func mockResponseDefaultJSONResponse() {
+        let response = MockResponse.defaultJSONResponse()
+        
+        #expect(response.statusCode == 200)
+        #expect(response.isDefault == true)
+        #expect(response.bodyType == .json)
+        #expect(response.headers.contains { $0.key == "Content-Type" })
+    }
+    
+    @Test func mockResponseDefaultErrorResponse() {
+        let response = MockResponse.defaultErrorResponse()
+        
+        #expect(response.statusCode == 500)
+        #expect(response.isDefault == false)
+    }
+}
+
+// MARK: - MockResponseBodyType Tests
+
+struct MockResponseBodyTypeTests {
+    @Test func mockResponseBodyTypeContentTypes() {
+        #expect(MockResponseBodyType.json.contentType == "application/json")
+        #expect(MockResponseBodyType.text.contentType == "text/plain")
+        #expect(MockResponseBodyType.xml.contentType == "application/xml")
+        #expect(MockResponseBodyType.html.contentType == "text/html")
+        #expect(MockResponseBodyType.binary.contentType == "application/octet-stream")
+    }
+    
+    @Test func mockResponseBodyTypeAllCases() {
+        #expect(MockResponseBodyType.allCases.count == 5)
+    }
+}
+
+// MARK: - MockServerStatus Tests
+
+struct MockServerStatusTests {
+    @Test func mockServerStatusRawValues() {
+        #expect(MockServerStatus.stopped.rawValue == "stopped")
+        #expect(MockServerStatus.starting.rawValue == "starting")
+        #expect(MockServerStatus.running.rawValue == "running")
+        #expect(MockServerStatus.stopping.rawValue == "stopping")
+        #expect(MockServerStatus.error.rawValue == "error")
+    }
+}
+
+// MARK: - MockServerExportData Tests
+
+struct MockServerExportDataTests {
+    @Test func mockServerExportImport() throws {
+        let server = MockServer(name: "Test Server", port: 3000, description: "Test description")
+        let endpoint = MockEndpoint(path: "/users", method: .get, name: "Get Users")
+        endpoint.server = server
+        server.endpoints.append(endpoint)
+        
+        let response = MockResponse(name: "Success", statusCode: 200)
+        response.endpoint = endpoint
+        endpoint.responses.append(response)
+        
+        // Export
+        let exportData = try server.exportConfiguration()
+        
+        // Import
+        let imported = try MockServer.importConfiguration(from: exportData)
+        
+        #expect(imported.name == "Test Server")
+        #expect(imported.port == 3000)
+        #expect(imported.description == "Test description")
+        #expect(imported.endpoints.count == 1)
+        #expect(imported.endpoints[0].path == "/users")
+        #expect(imported.endpoints[0].responses.count == 1)
+    }
+}
+
+// MARK: - MockServerRequest Tests
+
+struct MockServerRequestTests {
+    @Test func mockServerRequestStructure() {
+        let request = MockServerRequest(
+            method: .post,
+            path: "/api/users",
+            headers: ["Content-Type": "application/json"],
+            queryParameters: ["page": "1"],
+            body: #"{"name":"test"}"#.data(using: .utf8),
+            pathParameters: ["id": "123"]
+        )
+        
+        #expect(request.method == .post)
+        #expect(request.path == "/api/users")
+        #expect(request.headers["Content-Type"] == "application/json")
+        #expect(request.queryParameters["page"] == "1")
+        #expect(request.pathParameters["id"] == "123")
+    }
+}
+
+// MARK: - MockServerResponse Tests
+
+struct MockServerResponseTests {
+    @Test func mockServerResponseInitialization() {
+        let response = MockServerResponse(
+            statusCode: 201,
+            headers: ["Location": "/users/1"],
+            body: #"{"id":1}"#.data(using: .utf8),
+            delayMs: 50
+        )
+        
+        #expect(response.statusCode == 201)
+        #expect(response.headers["Location"] == "/users/1")
+        #expect(response.delayMs == 50)
+    }
+    
+    @Test func mockServerResponseNotFound() {
+        let response = MockServerResponse.notFound()
+        
+        #expect(response.statusCode == 404)
+        #expect(response.headers["Content-Type"] == "application/json")
+    }
+    
+    @Test func mockServerResponseInternalServerError() {
+        let response = MockServerResponse.internalServerError()
+        
+        #expect(response.statusCode == 500)
+    }
+}

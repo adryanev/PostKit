@@ -8,6 +8,8 @@ enum SidebarSelection: Hashable {
     case folder(Folder)
     case request(HTTPRequest)
     case chain(RequestChain)
+    case mockServer(MockServer)
+    case mockServersList
 }
 
 struct ContentView: View {
@@ -17,6 +19,7 @@ struct ContentView: View {
     @FocusState private var focusedPane: Pane?
     @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
     @ObservationIgnored @Injected(\.cloudKitSync) private var cloudKitSync
+    @MainActor @Injected(\.mockServerManager) private var mockServerManager
     private static var hasIndexedOnce = false
 
     enum Pane: Hashable {
@@ -46,6 +49,10 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .sidebarSelectionChange)) { notification in
             handleSidebarSelectionChange(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openMockServers)) { _ in
+            selectedSidebarItem = .mockServersList
+            NSApp.activate()
         }
         .onKeyPress(.tab) {
             if NSEvent.modifierFlags.contains(.control) {
@@ -79,6 +86,8 @@ struct ContentView: View {
                 Self.hasIndexedOnce = true
                 Task {
                     await spotlightIndexer.reindexAll(requests: allRequests)
+                    mockServerManager.configure(with: modelContext)
+                    await mockServerManager.startAutoStartServers()
                 }
             }
         }
@@ -95,6 +104,10 @@ struct ContentView: View {
             RequestDetailView(request: request)
         case .chain(let chain):
             ChainBuilderView(chain: chain, modelContext: modelContext)
+        case .mockServer(let server):
+            MockServerEditorView(server: server, viewModel: MockServerViewModel(modelContext: modelContext))
+        case .mockServersList:
+            MockServerListView()
         case .none:
             ContentUnavailableView(
                 "Select an Item",

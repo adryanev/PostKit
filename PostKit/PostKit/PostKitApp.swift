@@ -77,7 +77,10 @@ struct PostKitApp: App {
             RequestChain.self,
             ChainStep.self,
             ExtractionRule.self,
-            ChainExecutionHistory.self
+            ChainExecutionHistory.self,
+            MockServer.self,
+            MockEndpoint.self,
+            MockResponse.self
         ])
         
         // Check if iCloud sync is enabled

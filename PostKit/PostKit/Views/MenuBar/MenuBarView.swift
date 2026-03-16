@@ -23,17 +23,28 @@ struct MenuBarResult {
 struct MenuBarView: View {
     @Query(filter: #Predicate<HTTPRequest> { $0.isPinned }, sort: \HTTPRequest.updatedAt, order: .reverse)
     private var pinnedRequests: [HTTPRequest]
+    
+    @Query(sort: \MockServer.name) private var mockServers: [MockServer]
 
     @Environment(\.modelContext) private var modelContext
     @Injected(\.httpClient) private var httpClient
     @Injected(\.requestBuilder) private var requestBuilder
+    @MainActor @Injected(\.mockServerManager) private var mockServerManager
 
     @State private var results: [UUID: MenuBarResult] = [:]
     @State private var sendingRequestIDs: Set<UUID> = []
+    @State private var runningMockServers: [UUID] = []
 
     private let maxPinnedDisplay = 20
 
     var body: some View {
+        // Mock Servers Section
+        if !mockServers.isEmpty {
+            mockServersSection
+            Divider()
+        }
+        
+        // Pinned Requests Section
         if pinnedRequests.isEmpty {
             Text("No Pinned Requests")
                 .foregroundStyle(.secondary)
@@ -62,6 +73,29 @@ struct MenuBarView: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")
+    }
+    
+    @ViewBuilder
+    private var mockServersSection: some View {
+        ForEach(mockServers) { server in
+            MockServerMenuBarRow(server: server, isRunning: runningMockServers.contains(server.id)) {
+                await toggleMockServer(server)
+            }
+        }
+    }
+    
+    private func toggleMockServer(_ server: MockServer) async {
+        if runningMockServers.contains(server.id) {
+            await mockServerManager.stopServer(server)
+            runningMockServers.removeAll { $0 == server.id }
+        } else {
+            do {
+                try await mockServerManager.startServer(server)
+                runningMockServers.append(server.id)
+            } catch {
+                print("[MenuBar] Failed to start mock server: \(error)")
+            }
+        }
     }
 
     private func sendRequest(_ request: HTTPRequest) async {
@@ -126,6 +160,41 @@ struct MenuBarView: View {
                     error: error
                 )
                 sendingRequestIDs.remove(requestID)
+            }
+        }
+    }
+}
+
+// MARK: - Mock Server Menu Bar Row
+
+struct MockServerMenuBarRow: View {
+    let server: MockServer
+    let isRunning: Bool
+    let onToggle: () async -> Void
+    
+    var body: some View {
+        Button {
+            Task { await onToggle() }
+        } label: {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(isRunning ? Color.green : Color.gray)
+                    .frame(width: 8, height: 8)
+                
+                Text(server.name)
+                    .lineLimit(1)
+                
+                Text(":\(server.port)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                if isRunning {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.green)
+                        .font(.caption)
+                }
             }
         }
     }

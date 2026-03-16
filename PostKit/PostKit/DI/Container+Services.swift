@@ -56,4 +56,11 @@ extension Container {
     nonisolated var chainExecutor: Factory<ChainExecutorService> {
         self { ChainExecutorService() }
     }
+
+    // MARK: - Mock Server Services
+
+    @MainActor
+    var mockServerManager: Factory<MockServerManager> {
+        self { @MainActor in MockServerManager.shared }.scope(.singleton)
+    }
 }
