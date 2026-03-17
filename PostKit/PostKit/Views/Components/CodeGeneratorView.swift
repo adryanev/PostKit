@@ -7,7 +7,7 @@ struct CodeGeneratorView: View {
     @State private var generatedCode: String = ""
 
     private let codeGenerator = CodeGenerator()
-    private let availableLanguages = ["cURL", "Swift", "Python", "JavaScript", "Node.js", "Go"]
+    private var availableLanguages: [String] { codeGenerator.availableLanguages }
 
     var body: some View {
         VStack(spacing: 0) {

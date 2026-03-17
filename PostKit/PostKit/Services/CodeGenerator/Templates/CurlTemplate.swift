@@ -16,16 +16,16 @@ final class CurlTemplate: CodeTemplate {
         // Add headers
         let headers = getHeaders(from: request).filter { $0.isEnabled && !$0.key.isEmpty }
         for header in headers {
-            code += " \\\n  -H \"\(escapeString(header.key)): \(escapeString(header.value))\""
+            code += " \\\n  -H '\(escapeShellSingleQuote(header.key)): \(escapeShellSingleQuote(header.value))'"
         }
 
         // Add body if present
         if let body = getBody(for: request) {
-            code += " \\\n  -d \"\(escapeString(body))\""
+            code += " \\\n  -d '\(escapeShellSingleQuote(body))'"
         }
 
         // Add URL
-        code += " \\\n  \"\(escapeString(getFullURL(for: request)))\""
+        code += " \\\n  '\(escapeShellSingleQuote(getFullURL(for: request)))'"
 
         return code
     }

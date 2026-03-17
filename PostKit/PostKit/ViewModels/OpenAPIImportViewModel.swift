@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import Observation
 import SwiftUI
+import FactoryKit
 
 enum ImportStep: Int, CaseIterable, Sendable {
     case fileSelect = 0
@@ -40,8 +41,23 @@ enum NavigationDirection {
     case backward
 }
 
+enum ImportError: LocalizedError {
+    case fileTooLarge(size: Int64, maxSize: Int64)
+    
+    var errorDescription: String? {
+        switch self {
+        case .fileTooLarge(let size, let maxSize):
+            let sizeMB = Double(size) / 1_000_000
+            let maxSizeMB = Double(maxSize) / 1_000_000
+            return "File too large (\(String(format: "%.1f", sizeMB)) MB). Maximum allowed: \(String(format: "%.0f", maxSizeMB)) MB"
+        }
+    }
+}
+
 @Observable
 final class OpenAPIImportViewModel {
+    private static let maxImportFileSize: Int64 = 50 * 1024 * 1024 // 50MB
+    
     var currentStep: ImportStep = .fileSelect
     private(set) var navigationDirection: NavigationDirection = .forward
     
@@ -58,7 +74,8 @@ final class OpenAPIImportViewModel {
     
     var collections: [RequestCollection] = []
     
-    private let parser = OpenAPIParser()
+    @ObservationIgnored @Injected(\.openAPIParser) private var parser
+    
     private let diffEngine = OpenAPIDiffEngine()
     
     var effectiveLastStep: ImportStep {
@@ -109,6 +126,11 @@ final class OpenAPIImportViewModel {
         
         Task { @MainActor in
             do {
+                let fileAttributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                if let fileSize = fileAttributes[.size] as? Int64, fileSize > Self.maxImportFileSize {
+                    throw ImportError.fileTooLarge(size: fileSize, maxSize: Self.maxImportFileSize)
+                }
+                
                 let data = try Data(contentsOf: url)
                 let parsedSpec = try parser.parseSpec(data)
                 

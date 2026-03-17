@@ -85,15 +85,9 @@ final class MockServerManager: ObservableObject {
             
             os_log(.info, log: logger, "Started mock server '%{public}@' on port %d", mockServer.name, mockServer.port)
         } catch {
-            // Update state to error
-            runningServers[mockServer.id] = ServerState(
-                port: mockServer.port,
-                status: .error,
-                errorMessage: error.localizedDescription,
-                requestCount: 0,
-                lastRequestTime: nil
-            )
-            
+            // Remove from runningServers so the guard does not prevent retries
+            runningServers.removeValue(forKey: mockServer.id)
+
             throw error
         }
     }

@@ -80,19 +80,22 @@ struct CommandPalette: View {
                     emptyStateView
                 } else {
                     ScrollViewReader { proxy in
+                        let flatItems = viewModel.filteredItems
                         List(selection: $viewModel.selectedIndex) {
                             ForEach(Array(viewModel.filteredGroupedItems.keys.sorted()), id: \.self) { category in
                                 if let items = viewModel.filteredGroupedItems[category], !items.isEmpty {
                                     Section(header: categoryHeader(category)) {
-                                        ForEach(Array(items.enumerated()), id: \.element) { index, item in
+                                        ForEach(Array(items.enumerated()), id: \.element) { _, item in
+                                            let flatIndex = flatItems.firstIndex(where: { $0.displayTitle == item.displayTitle && $0.category == item.category }) ?? 0
                                             ItemRow(
                                                 item: item,
-                                                index: index,
-                                                isSelected: viewModel.selectedIndex == index
+                                                index: flatIndex,
+                                                isSelected: viewModel.selectedIndex == flatIndex
                                             )
-                                            .tag(index)
+                                            .tag(flatIndex)
+                                            .id(flatIndex)
                                             .onTapGesture {
-                                                viewModel.selectedIndex = index
+                                                viewModel.selectedIndex = flatIndex
                                                 viewModel.executeSelectedItem()
                                             }
                                         }

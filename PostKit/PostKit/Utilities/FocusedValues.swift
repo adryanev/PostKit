@@ -21,7 +21,7 @@ struct CancelRequestActionKey: FocusedValueKey {
 }
 
 struct ShowCommandPaletteKey: FocusedValueKey {
-    typealias Value: Void = ()
+    typealias Value = Void
 }
 
 extension FocusedValues {

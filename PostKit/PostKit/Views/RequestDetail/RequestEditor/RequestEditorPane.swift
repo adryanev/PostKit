@@ -20,13 +20,14 @@ struct RequestEditorPane: View {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(request.urlTemplate.startIndex..., in: request.urlTemplate)
         let matches = regex.matches(in: request.urlTemplate, range: range)
+        var seen = Set<String>()
         return matches.compactMap { match in
             if match.numberOfRanges > 1,
                let varRange = Range(match.range(at: 1), in: request.urlTemplate) {
                 return String(request.urlTemplate[varRange])
             }
             return nil
-        }
+        }.filter { seen.insert($0).inserted }
     }
     
     var body: some View {

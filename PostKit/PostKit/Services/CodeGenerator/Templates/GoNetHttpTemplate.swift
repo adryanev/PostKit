@@ -6,19 +6,17 @@ final class GoNetHttpTemplate: CodeTemplate {
     let fileExtension = "go"
 
     func generateCode(for request: HTTPRequest) -> String {
+        let hasBody = getBody(for: request) != nil && request.bodyType != .none
+
         var code = "package main\n\n"
         code += "import (\n"
         code += "    \"fmt\"\n"
         code += "    \"io\"\n"
         code += "    \"net/http\"\n"
-        code += "    \"strings\"\n"
-
-        // Check if body is present for bytes import
-        if let _ = getBody(for: request), request.bodyType != .none {
-            code += ")\n\n"
-        } else {
-            code += ")\n\n"
+        if hasBody {
+            code += "    \"strings\"\n"
         }
+        code += ")\n\n"
 
         // Main function
         code += "func main() {\n"

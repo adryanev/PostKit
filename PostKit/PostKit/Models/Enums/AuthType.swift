@@ -64,21 +64,48 @@ extension AuthConfig {
 
     /// Moves sensitive fields (token, password, apiKeyValue) into the
     /// Keychain and clears their plaintext representations.
-    mutating func storeSecrets(forRequestID requestID: String) {
+    /// Returns any errors encountered during storage.
+    @discardableResult
+    mutating func storeSecrets(forRequestID requestID: String) -> [KeychainError] {
         let keychain = Container.shared.keychainManager()
+        var errors: [KeychainError] = []
 
         if let token = token, !token.isEmpty {
-            try? keychain.store(key: Self.tokenKey(for: requestID), value: token)
-            self.token = ""
+            do {
+                try keychain.store(key: Self.tokenKey(for: requestID), value: token)
+                self.token = ""
+            } catch let error as KeychainError {
+                errors.append(error)
+            } catch {
+                errors.append(.storeFailed(errSecNotAvailable))
+            }
         }
         if let password = password, !password.isEmpty {
-            try? keychain.store(key: Self.passwordKey(for: requestID), value: password)
-            self.password = ""
+            do {
+                try keychain.store(key: Self.passwordKey(for: requestID), value: password)
+                self.password = ""
+            } catch let error as KeychainError {
+                errors.append(error)
+            } catch {
+                errors.append(.storeFailed(errSecNotAvailable))
+            }
         }
         if let apiKeyValue = apiKeyValue, !apiKeyValue.isEmpty {
-            try? keychain.store(key: Self.apiKeyValueKey(for: requestID), value: apiKeyValue)
-            self.apiKeyValue = ""
+            do {
+                try keychain.store(key: Self.apiKeyValueKey(for: requestID), value: apiKeyValue)
+                self.apiKeyValue = ""
+            } catch let error as KeychainError {
+                errors.append(error)
+            } catch {
+                errors.append(.storeFailed(errSecNotAvailable))
+            }
         }
+        
+        if !errors.isEmpty {
+            print("[PostKit] Keychain storage errors for request \(requestID): \(errors)")
+        }
+        
+        return errors
     }
 
     func retrieveSecrets(forRequestID requestID: String) -> AuthConfig {
@@ -99,8 +126,12 @@ extension AuthConfig {
 
     static func deleteSecrets(forRequestID requestID: String) {
         let keychain = Container.shared.keychainManager()
-        try? keychain.delete(key: tokenKey(for: requestID))
-        try? keychain.delete(key: passwordKey(for: requestID))
-        try? keychain.delete(key: apiKeyValueKey(for: requestID))
+        for key in [tokenKey(for: requestID), passwordKey(for: requestID), apiKeyValueKey(for: requestID)] {
+            do {
+                try keychain.delete(key: key)
+            } catch {
+                print("[PostKit] Failed to delete keychain entry \(key): \(error)")
+            }
+        }
     }
 }

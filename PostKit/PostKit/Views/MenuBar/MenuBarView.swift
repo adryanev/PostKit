@@ -3,23 +3,6 @@ import SwiftData
 import Combine
 import FactoryKit
 
-struct MenuBarResult {
-    let statusCode: Int
-    let duration: TimeInterval
-    let timestamp: Date
-    let error: Error?
-
-    var statusColor: Color {
-        switch statusCode {
-        case 200..<300: .green
-        case 300..<400: .blue
-        case 400..<500: .orange
-        case 500..<600: .red
-        default: .gray
-        }
-    }
-}
-
 struct MenuBarView: View {
     @Query(filter: #Predicate<HTTPRequest> { $0.isPinned }, sort: \HTTPRequest.updatedAt, order: .reverse)
     private var pinnedRequests: [HTTPRequest]
@@ -27,15 +10,10 @@ struct MenuBarView: View {
     @Query(sort: \MockServer.name) private var mockServers: [MockServer]
 
     @Environment(\.modelContext) private var modelContext
-    @Injected(\.httpClient) private var httpClient
-    @Injected(\.requestBuilder) private var requestBuilder
-    @MainActor @Injected(\.mockServerManager) private var mockServerManager
-
-    @State private var results: [UUID: MenuBarResult] = [:]
-    @State private var sendingRequestIDs: Set<UUID> = []
-    @State private var runningMockServers: [UUID] = []
+    @State private var viewModel = MenuBarViewModel()
 
     private let maxPinnedDisplay = 20
+    private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         // Mock Servers Section
@@ -53,10 +31,10 @@ struct MenuBarView: View {
             ForEach(pinnedRequests.prefix(maxPinnedDisplay)) { request in
                 MenuBarRequestRow(
                     request: request,
-                    result: results[request.id],
-                    isSending: sendingRequestIDs.contains(request.id)
+                    result: viewModel.results[request.id],
+                    isSending: viewModel.sendingRequestIDs.contains(request.id)
                 ) {
-                    await sendRequest(request)
+                    await viewModel.sendRequest(request, modelContext: modelContext)
                 }
             }
             Divider()
@@ -73,95 +51,6 @@ struct MenuBarView: View {
             NSApplication.shared.terminate(nil)
         }
         .keyboardShortcut("q")
-    }
-    
-    @ViewBuilder
-    private var mockServersSection: some View {
-        ForEach(mockServers) { server in
-            MockServerMenuBarRow(server: server, isRunning: runningMockServers.contains(server.id)) {
-                await toggleMockServer(server)
-            }
-        }
-    }
-    
-    private func toggleMockServer(_ server: MockServer) async {
-        if runningMockServers.contains(server.id) {
-            await mockServerManager.stopServer(server)
-            runningMockServers.removeAll { $0 == server.id }
-        } else {
-            do {
-                try await mockServerManager.startServer(server)
-                runningMockServers.append(server.id)
-            } catch {
-                print("[MenuBar] Failed to start mock server: \(error)")
-            }
-        }
-    }
-
-    private func sendRequest(_ request: HTTPRequest) async {
-        guard !request.urlTemplate.isEmpty else { return }
-
-        let hasScripts = (request.preRequestScript?.isEmpty == false) || (request.postRequestScript?.isEmpty == false)
-        if hasScripts {
-            return
-        }
-
-        let (urlRequest, requestID, requestMethod, requestURLTemplate) = await MainActor.run {
-            sendingRequestIDs.insert(request.id)
-            let variables = requestBuilder.getActiveEnvironmentVariables(from: modelContext)
-            let urlRequest = try? requestBuilder.buildURLRequest(for: request, with: variables)
-            return (urlRequest, request.id, request.method, request.urlTemplate)
-        }
-
-        guard let urlRequest = urlRequest else {
-            await MainActor.run {
-                sendingRequestIDs.remove(request.id)
-            }
-            return
-        }
-
-        do {
-            let response = try await httpClient.execute(urlRequest, taskID: UUID())
-
-            if let fileURL = response.bodyFileURL {
-                try? FileManager.default.removeItem(at: fileURL)
-            }
-
-            await MainActor.run {
-                results[requestID] = MenuBarResult(
-                    statusCode: response.statusCode,
-                    duration: response.duration,
-                    timestamp: Date(),
-                    error: nil
-                )
-                sendingRequestIDs.remove(requestID)
-
-                let entry = HistoryEntry(
-                    method: requestMethod,
-                    url: requestURLTemplate,
-                    statusCode: response.statusCode,
-                    responseTime: response.duration,
-                    responseSize: response.size
-                )
-                entry.request = request
-                modelContext.insert(entry)
-                do {
-                    try modelContext.save()
-                } catch {
-                    print("[MenuBar] Failed to save history: \(error)")
-                }
-            }
-        } catch {
-            await MainActor.run {
-                results[requestID] = MenuBarResult(
-                    statusCode: 0,
-                    duration: 0,
-                    timestamp: Date(),
-                    error: error
-                )
-                sendingRequestIDs.remove(requestID)
-            }
-        }
     }
 }
 
@@ -207,7 +96,6 @@ struct MenuBarRequestRow: View {
     let onSend: () async -> Void
 
     private let maxDisplayTime: TimeInterval = 30
-    @State private var refreshTick: Int = 0
 
     var body: some View {
         Button {
@@ -251,9 +139,6 @@ struct MenuBarRequestRow: View {
             }
         }
         .disabled(isSending || hasScripts)
-        .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
-            refreshTick += 1
-        }
     }
 
     @ViewBuilder

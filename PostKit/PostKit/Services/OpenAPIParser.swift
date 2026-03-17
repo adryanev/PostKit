@@ -295,17 +295,19 @@ final class OpenAPIParser: OpenAPIParserProtocol, Sendable {
     }
     
     private func convertPathParameters(_ path: String) -> String {
+        // Convert OpenAPI {param} to :param (path variable syntax)
+        // Note: {{param}} is reserved for environment variables
         let pattern = "\\{(\\w+)\\}"
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return path }
-        
+
         let range = NSRange(path.startIndex..., in: path)
         let result = regex.stringByReplacingMatches(
             in: path,
             options: [],
             range: range,
-            withTemplate: "{{$1}}"
+            withTemplate: ":$1"
         )
-        
+
         return result
     }
     

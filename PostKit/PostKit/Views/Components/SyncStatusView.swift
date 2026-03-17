@@ -158,6 +158,8 @@ struct SyncPreferencesView: View {
                                 Task {
                                     if newValue {
                                         await viewModel.enableSync()
+                                    } else {
+                                        await viewModel.disableSync()
                                     }
                                 }
                             }

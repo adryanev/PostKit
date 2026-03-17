@@ -33,7 +33,7 @@ extension Container {
         self { SpotlightIndexer.shared }.singleton
     }
 
-    nonisolated var requestBuilder: Factory<RequestBuilder> {
+    nonisolated var requestBuilder: Factory<RequestBuilderProtocol> {
         self { RequestBuilder() }
     }
 

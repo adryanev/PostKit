@@ -34,55 +34,31 @@ final class NodeAxiosTemplate: CodeTemplate {
             }
         }
 
-        // Make request
-        code += "axios.\(request.method.rawValue.lowercased())('"
+        // Make request using unified config form
+        let hasBody = getBody(for: request) != nil && request.bodyType != .none
 
-        code += escapeString(baseURL)
-        code += "'"
+        code += "axios({\n"
+        code += "    method: '\(request.method.rawValue.lowercased())',\n"
+        code += "    url: '\(escapeString(baseURL))'"
 
         if !queryParams.isEmpty {
-            code += ", {\n"
-            code += "    params: {\n"
+            code += ",\n    params: {\n"
             for (index, param) in queryParams.enumerated() {
                 let comma = index < queryParams.count - 1 ? "," : ""
                 code += "        '\(escapeString(param.key))': '\(escapeString(param.value))'\(comma)\n"
             }
             code += "    }"
-
-            if let _ = getBody(for: request), request.bodyType != .none {
-                code += ",\n    data: data"
-            }
-            if !headers.isEmpty {
-                code += ",\n    headers: headers"
-            }
-
-            code += "\n}"
-        } else {
-            code += ", {"
-
-            let options: [String] = [
-                !headers.isEmpty ? "headers" : nil,
-                getBody(for: request) != nil && request.bodyType != .none ? "data" : nil
-            ].compactMap { $0 }
-
-            if !options.isEmpty {
-                code += "\n"
-                if !headers.isEmpty {
-                    code += "    headers: headers"
-                    if options.count > 1 {
-                        code += ","
-                    }
-                    code += "\n"
-                }
-                if let _ = getBody(for: request), request.bodyType != .none {
-                    code += "    data: data\n"
-                }
-            }
-
-            code += "}"
         }
 
-        code += ")\n"
+        if hasBody {
+            code += ",\n    data: data"
+        }
+
+        if !headers.isEmpty {
+            code += ",\n    headers: headers"
+        }
+
+        code += "\n})\n"
         code += ".then(response => {\n"
         code += "    console.log(`Status Code: ${response.status}`);\n"
         code += "    console.log('Response:', response.data);\n"

@@ -1,7 +1,10 @@
 import Foundation
 
 /// Threshold (in bytes) above which response bodies are spilled to disk.
-let httpClientMaxMemorySize: Int64 = 1_000_000 // 1MB
+nonisolated enum HTTPClientConstants: Sendable {
+    static let maxMemorySize: Int64 = 1_000_000 // 1MB
+    static let maxResponseSize: Int = 100 * 1024 * 1024 // 100MB
+}
 
 protocol HTTPClientProtocol: Sendable {
     func execute(_ request: URLRequest, taskID: UUID) async throws -> HTTPResponse
@@ -17,7 +20,7 @@ struct TimingBreakdown: Sendable, Codable {
     let total: TimeInterval
     let redirectTime: TimeInterval
 
-    init(
+    nonisolated init(
         dnsLookup: TimeInterval,
         tcpConnection: TimeInterval,
         tlsHandshake: TimeInterval,

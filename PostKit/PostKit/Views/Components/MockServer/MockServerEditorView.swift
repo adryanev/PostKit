@@ -143,7 +143,8 @@ struct MockServerEditorView: View {
                         .foregroundStyle(.secondary)
                         .contextMenu {
                             Button("Copy URL") {
-                                Pasteboard.general.setString(serverURL, forType: .string)
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(serverURL, forType: .string)
                             }
                         }
                 }
@@ -181,7 +182,7 @@ struct MockServerEditorView: View {
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 100)
                         
-                        if !viewModel!.validatePort(server.port, for: server) {
+                        if !(viewModel?.validatePort(server.port, for: server) ?? true) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
                                 .help("Port may be in use")

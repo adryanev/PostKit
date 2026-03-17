@@ -82,7 +82,7 @@ struct OpenAPIDiffEngineTests {
             requestID: UUID(),
             name: "Delete User",
             method: .delete,
-            path: "/users/{{id}}",
+            path: "/users/:id",
             headers: [],
             queryParams: [],
             bodyType: .none,
@@ -177,7 +177,7 @@ struct OpenAPIDiffEngineTests {
             requestID: UUID(),
             name: "Delete User",
             method: .delete,
-            path: "/users/{{id}}",
+            path: "/users/:id",
             headers: [],
             queryParams: [],
             bodyType: .none,
@@ -292,7 +292,7 @@ struct OpenAPIDiffEngineTests {
         let endpoint = OpenAPIEndpoint(
             name: "Get User",
             method: .get,
-            path: "/users/{{id}}",
+            path: "/users/:id",
             parameters: [
                 OpenAPIParameter(name: "id", location: "path"),
                 OpenAPIParameter(name: "include", location: "query"),
@@ -315,10 +315,10 @@ struct OpenAPIDiffEngineTests {
             securitySchemes: schemes
         )
         
-        #expect(snapshot.id == "GET /users/{{id}}")
+        #expect(snapshot.id == "GET /users/:id")
         #expect(snapshot.name == "Get User")
         #expect(snapshot.method == .get)
-        #expect(snapshot.path == "/users/{{id}}")
+        #expect(snapshot.path == "/users/:id")
         #expect(snapshot.headers.count == 1)
         #expect(snapshot.headers[0].key == "X-Custom")
         #expect(snapshot.queryParams.count == 1)

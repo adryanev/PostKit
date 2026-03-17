@@ -28,9 +28,7 @@ final class JavaScriptFetchTemplate: CodeTemplate {
 
         // Add body if present
         if let body = getBody(for: request), request.bodyType != .none {
-            if headers.isEmpty {
-                code += ","
-            }
+            code += ","
             code += "\n    body: "
 
             if request.bodyType == .json {

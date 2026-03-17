@@ -8,25 +8,10 @@ final class SpotlightIndexer: SpotlightIndexerProtocol, Sendable {
     static let shared = SpotlightIndexer()
     private nonisolated init() {}
     
-    @MainActor
-    func indexRequest(_ request: HTTPRequest, collectionName: String?, folderName: String?) async {
-        let attributeSet = CSSearchableItemAttributeSet(contentType: .item)
-        attributeSet.title = request.name
-        attributeSet.contentDescription = "\(request.method.rawValue) \(request.urlTemplate)"
-        attributeSet.keywords = [
-            request.method.rawValue,
-            collectionName,
-            folderName
-        ].compactMap { $0 }
-        
-        attributeSet.thumbnailData = renderMethodBadge(for: request.method)
-        
-        let item = CSSearchableItem(
-            uniqueIdentifier: request.id.uuidString,
-            domainIdentifier: "dev.adryanev.PostKit.requests",
-            attributeSet: attributeSet
-        )
-        
+    private let batchSize = 50
+    
+    func indexRequest(_ request: IndexableRequest) async {
+        let item = buildSearchableItem(from: request)
         try? await CSSearchableIndex.default().indexSearchableItems([item])
     }
     
@@ -43,15 +28,48 @@ final class SpotlightIndexer: SpotlightIndexerProtocol, Sendable {
         )
     }
     
-    @MainActor
-    func reindexAll(requests: [HTTPRequest]) async {
+    func reindexAll(requests: [IndexableRequest]) async {
         try? await CSSearchableIndex.default().deleteAllSearchableItems()
-        for request in requests {
-            await indexRequest(request, collectionName: request.collection?.name, folderName: request.folder?.name)
+        
+        for batch in requests.chunked(into: batchSize) {
+            let items = await withTaskGroup(of: CSSearchableItem.self) { group in
+                for request in batch {
+                    group.addTask {
+                        self.buildSearchableItem(from: request)
+                    }
+                }
+                
+                var results: [CSSearchableItem] = []
+                for await item in group {
+                    results.append(item)
+                }
+                return results
+            }
+            
+            try? await CSSearchableIndex.default().indexSearchableItems(items)
         }
     }
     
-    private func renderMethodBadge(for method: HTTPMethod) -> Data? {
+    private nonisolated func buildSearchableItem(from request: IndexableRequest) -> CSSearchableItem {
+        let attributeSet = CSSearchableItemAttributeSet(contentType: .item)
+        attributeSet.title = request.name
+        attributeSet.contentDescription = "\(request.method.rawValue) \(request.urlTemplate)"
+        attributeSet.keywords = [
+            request.method.rawValue,
+            request.collectionName,
+            request.folderName
+        ].compactMap { $0 }
+        
+        attributeSet.thumbnailData = renderMethodBadge(for: request.method)
+        
+        return CSSearchableItem(
+            uniqueIdentifier: request.id.uuidString,
+            domainIdentifier: "dev.adryanev.PostKit.requests",
+            attributeSet: attributeSet
+        )
+    }
+    
+    private nonisolated func renderMethodBadge(for method: HTTPMethod) -> Data? {
         let size = NSSize(width: 32, height: 32)
         let image = NSImage(size: size)
         

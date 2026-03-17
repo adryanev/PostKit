@@ -4,7 +4,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
     private let session: URLSession
     private var activeTasks: [UUID: URLSessionTask] = [:]
 
-    private let maxMemorySize: Int64 = httpClientMaxMemorySize
+    private let maxMemorySize: Int64 = HTTPClientConstants.maxMemorySize
 
     init(configuration: URLSessionConfiguration = .default) {
         let config = configuration
@@ -52,7 +52,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                     }
                 }
 
-                Task { await self.storeTask(task, id: taskID) }
+                Task { self.storeTask(task, id: taskID) }
                 task.resume()
             }
         } onCancel: {

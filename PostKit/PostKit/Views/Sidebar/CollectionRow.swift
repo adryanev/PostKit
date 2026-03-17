@@ -18,10 +18,10 @@ struct CollectionRow: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(collection.folders.sorted(by: { $0.sortOrder < $1.sortOrder })) { folder in
+            ForEach(collection.sortedFolders) { folder in
                 FolderRow(folder: folder, selection: $selection)
             }
-            ForEach(collection.requests.filter { $0.folder == nil }.sorted(by: { $0.sortOrder < $1.sortOrder })) { request in
+            ForEach(collection.rootRequests) { request in
                 requestRow(for: request)
             }
         } label: {
@@ -192,7 +192,7 @@ struct FolderRow: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(folder.requests.sorted(by: { $0.sortOrder < $1.sortOrder })) { request in
+            ForEach(folder.sortedRequests) { request in
                 RequestRow(request: request, compact: true)
                     .tag(SidebarSelection.request(request))
                     .contextMenu {

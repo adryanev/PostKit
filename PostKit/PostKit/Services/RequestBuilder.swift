@@ -5,7 +5,7 @@ import SwiftData
 /// Shared request-building logic used by both RequestViewModel and MenuBarView.
 /// Accepts pre-fetched environment variables so callers can supply overrides
 /// (e.g. after pre-request scripts modify the variables map).
-final class RequestBuilder: Sendable {
+final class RequestBuilder: RequestBuilderProtocol {
 
     @Injected(\.variableInterpolator) private var interpolator
 
@@ -27,10 +27,9 @@ final class RequestBuilder: Sendable {
     ) throws -> URLRequest {
         let allVariables = variables
 
-        // Build path variable lookup from request's pathVariablesData
-        let pathVariables = [KeyValuePair].decode(from: request.pathVariablesData)
+        // Build path variable lookup from request's cached pathVariables
         var pathVarLookup: [String: String] = [:]
-        for pathVar in pathVariables where pathVar.isEnabled && !pathVar.key.isEmpty {
+        for pathVar in request.pathVariables where pathVar.isEnabled && !pathVar.key.isEmpty {
             pathVarLookup[pathVar.key] = pathVar.value
         }
 
@@ -41,10 +40,9 @@ final class RequestBuilder: Sendable {
 
         var urlComponents = URLComponents(string: interpolatedURL)
 
-        let queryParams = [KeyValuePair].decode(from: request.queryParamsData)
         var queryItems = urlComponents?.queryItems ?? []
 
-        for param in queryParams where param.isEnabled {
+        for param in request.queryParams where param.isEnabled {
             let interpolatedKey = try interpolator.interpolate(param.key, with: allVariables)
             let interpolatedValue = try interpolator.interpolate(param.value, with: allVariables)
             queryItems.append(URLQueryItem(name: interpolatedKey, value: interpolatedValue))
@@ -71,8 +69,7 @@ final class RequestBuilder: Sendable {
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.timeoutInterval = 30
 
-        let headers = [KeyValuePair].decode(from: request.headersData)
-        for header in headers where header.isEnabled {
+        for header in request.headers where header.isEnabled {
             let interpolatedKey = try interpolator.interpolate(header.key, with: allVariables)
             let interpolatedValue = try interpolator.interpolate(header.value, with: allVariables)
             urlRequest.setValue(interpolatedValue, forHTTPHeaderField: interpolatedKey)

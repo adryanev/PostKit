@@ -67,11 +67,14 @@ struct ContentView: View {
             }
             if case .request(let new) = newValue {
                 Task {
-                    await spotlightIndexer.indexRequest(
-                        new,
+                    await spotlightIndexer.indexRequest(IndexableRequest(
+                        id: new.id,
+                        name: new.name,
+                        method: new.method,
+                        urlTemplate: new.urlTemplate,
                         collectionName: new.collection?.name,
                         folderName: new.folder?.name
-                    )
+                    ))
                 }
             }
         }
@@ -85,9 +88,17 @@ struct ContentView: View {
             if !Self.hasIndexedOnce {
                 Self.hasIndexedOnce = true
                 Task {
-                    await spotlightIndexer.reindexAll(requests: allRequests)
-                    mockServerManager.configure(with: modelContext)
-                    await mockServerManager.startAutoStartServers()
+                    let indexableRequests = allRequests.map { request in
+                        IndexableRequest(
+                            id: request.id,
+                            name: request.name,
+                            method: request.method,
+                            urlTemplate: request.urlTemplate,
+                            collectionName: request.collection?.name,
+                            folderName: request.folder?.name
+                        )
+                    }
+                    await spotlightIndexer.reindexAll(requests: indexableRequests)
                 }
             }
         }

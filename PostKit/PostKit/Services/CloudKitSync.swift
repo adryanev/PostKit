@@ -24,6 +24,7 @@ final class CloudKitSync: ObservableObject, CloudKitSyncProtocol {
     private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "CloudKitSync")
     private let container = CKContainer(identifier: "iCloud.dev.adryanev.PostKit")
     private var cancellables = Set<AnyCancellable>()
+    private var notificationsConfigured = false
     private var lastSyncDate: Date?
     private var isSyncEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: "CloudKitSyncEnabled") }
@@ -63,7 +64,10 @@ final class CloudKitSync: ObservableObject, CloudKitSyncProtocol {
         
         switch accountStatus {
         case .available:
-            await setupNotifications()
+            if !notificationsConfigured {
+                await setupNotifications()
+                notificationsConfigured = true
+            }
             await updateStatus(.synced)
             os_log(.info, log: log, "CloudKit sync initialized successfully")
             
@@ -116,6 +120,8 @@ final class CloudKitSync: ObservableObject, CloudKitSyncProtocol {
     func disableSync() async {
         os_log(.info, log: log, "Disabling CloudKit sync")
         isSyncEnabled = false
+        cancellables.removeAll()
+        notificationsConfigured = false
         await updateStatus(.disabled)
     }
     
@@ -163,6 +169,8 @@ final class CloudKitSync: ObservableObject, CloudKitSyncProtocol {
     }
     
     private func handleCloudKitEvent(_ notification: Notification) {
+        guard isSyncEnabled else { return }
+
         guard let event = notification.userInfo?[NSPersistentCloudKitContainer.eventNotificationUserInfoKey]
             as? NSPersistentCloudKitContainer.Event else {
             return
@@ -222,6 +230,8 @@ final class CloudKitSync: ObservableObject, CloudKitSyncProtocol {
     }
     
     private func checkConnectivity() async {
+        guard isSyncEnabled else { return }
+
         // Simple connectivity check via CKContainer
         let accountStatus = await checkAccountStatus()
         
@@ -274,7 +284,7 @@ final class MockCloudKitSync: CloudKitSyncProtocol {
     
     func initialize() async {}
     func triggerSync() async {}
-    func enableSync() async { status = .synced }
-    func disableSync() async { status = .disabled }
+    func enableSync() async { status = .synced; statusSubject.send(status) }
+    func disableSync() async { status = .disabled; statusSubject.send(status) }
     func checkAccountStatus() async -> CKAccountStatus { .available }
 }

@@ -230,7 +230,10 @@ struct ExtractionRuleRow: View {
             // Default Value
             LabeledContent("Default Value") {
                 VStack(alignment: .trailing, spacing: 4) {
-                    TextField("Optional fallback value", text: $rule.defaultValue ?? "")
+                    TextField("Optional fallback value", text: Binding(
+                        get: { rule.defaultValue ?? "" },
+                        set: { rule.defaultValue = $0.isEmpty ? nil : $0 }
+                    ))
                         .textFieldStyle(.roundedBorder)
                     
                     Text("Used when extraction fails")

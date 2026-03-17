@@ -221,7 +221,8 @@ struct MockEndpointEditorView: View {
     
     private func copyCurlCommand() {
         let curl = viewModel?.copyCurlCommand(for: endpoint, server: server) ?? ""
-        Pasteboard.general.setString(curl, forType: .string)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(curl, forType: .string)
     }
 }
 

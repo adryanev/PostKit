@@ -44,6 +44,7 @@ struct CollectionDetailView: View {
                 CollectionSettingsView(collection: collection)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 }
@@ -110,8 +111,9 @@ struct CollectionEnvironmentsView: View {
     }
     
     private func createEnvironment() {
-        guard !newEnvironmentName.isEmpty else { return }
-        let env = APIEnvironment(name: newEnvironmentName)
+        let trimmed = newEnvironmentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let env = APIEnvironment(name: trimmed)
         env.collection = collection
         modelContext.insert(env)
         newEnvironmentName = ""
@@ -218,6 +220,7 @@ struct FolderDetailView: View {
                 .padding()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 }

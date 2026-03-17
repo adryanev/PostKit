@@ -106,6 +106,7 @@ struct SearchMatch: Identifiable, Equatable {
 // MARK: - Search Manager
 
 /// Manages search state and navigation
+@MainActor
 @Observable
 final class ResponseSearchManager {
     var query: String = ""

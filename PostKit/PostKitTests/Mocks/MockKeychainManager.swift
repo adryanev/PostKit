@@ -2,38 +2,65 @@ import Foundation
 @testable import PostKit
 
 final class MockKeychainManager: KeychainManagerProtocol, @unchecked Sendable {
-    private var store: [String: String] = [:]
-    var storeCallCount = 0
-    var retrieveCallCount = 0
-    var deleteCallCount = 0
+    private let lock = NSLock()
+    private var _store: [String: String] = [:]
+    private var _storeCallCount = 0
+    private var _retrieveCallCount = 0
+    private var _deleteCallCount = 0
     var shouldThrow = false
+    
+    var storeCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _storeCallCount
+    }
+    
+    var retrieveCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _retrieveCallCount
+    }
+    
+    var deleteCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _deleteCallCount
+    }
     
     init(shouldThrow: Bool = false) {
         self.shouldThrow = shouldThrow
     }
 
     func store(key: String, value: String) throws {
-        storeCallCount += 1
+        lock.lock()
+        defer { lock.unlock() }
+        _storeCallCount += 1
         if shouldThrow { throw KeychainError.storeFailed(errSecNotAvailable) }
-        store[key] = value
+        _store[key] = value
     }
 
     func retrieve(key: String) throws -> String? {
-        retrieveCallCount += 1
+        lock.lock()
+        defer { lock.unlock() }
+        _retrieveCallCount += 1
         if shouldThrow { throw KeychainError.retrieveFailed(errSecNotAvailable) }
-        return store[key]
+        return _store[key]
     }
 
     func delete(key: String) throws {
-        deleteCallCount += 1
+        lock.lock()
+        defer { lock.unlock() }
+        _deleteCallCount += 1
         if shouldThrow { throw KeychainError.deleteFailed(errSecNotAvailable) }
-        store.removeValue(forKey: key)
+        _store.removeValue(forKey: key)
     }
     
     func reset() {
-        store.removeAll()
-        storeCallCount = 0
-        retrieveCallCount = 0
-        deleteCallCount = 0
+        lock.lock()
+        defer { lock.unlock() }
+        _store.removeAll()
+        _storeCallCount = 0
+        _retrieveCallCount = 0
+        _deleteCallCount = 0
     }
 }

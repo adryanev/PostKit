@@ -37,7 +37,11 @@ extension CodeTemplate {
         let queryParams = getQueryParams(from: request).filter { $0.isEnabled && !$0.key.isEmpty }
 
         if !queryParams.isEmpty {
-            let queryString = queryParams.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
+            let queryString = queryParams.map { pair in
+                let encodedKey = pair.key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pair.key
+                let encodedValue = pair.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? pair.value
+                return "\(encodedKey)=\(encodedValue)"
+            }.joined(separator: "&")
             url += (url.contains("?") ? "&" : "?") + queryString
         }
 
@@ -59,7 +63,7 @@ extension CodeTemplate {
         return url
     }
 
-    /// Escape string for code generation
+    /// Escape string for code generation (double-quoted contexts)
     func escapeString(_ string: String) -> String {
         string
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -67,5 +71,12 @@ extension CodeTemplate {
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
             .replacingOccurrences(of: "\t", with: "\\t")
+    }
+
+    /// Escape string for shell single-quoted arguments.
+    /// Single quotes in the input are handled by ending the current single-quoted segment,
+    /// inserting an escaped single quote (backslash-single-quote), and reopening.
+    func escapeShellSingleQuote(_ string: String) -> String {
+        string.replacingOccurrences(of: "'", with: "'\\''")
     }
 }

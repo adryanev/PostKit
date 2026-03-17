@@ -193,6 +193,7 @@ final class RequestChainViewModel {
         let history = ChainExecutionHistory()
         history.chain = chain
         history.status = .running
+        modelContext.insert(history)
         currentExecutionHistory = history
         
         let variables = getActiveEnvironmentVariables()

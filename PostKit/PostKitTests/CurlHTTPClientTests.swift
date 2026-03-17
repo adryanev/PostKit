@@ -256,6 +256,6 @@ struct CurlHTTPClientTests {
     // MARK: - Shared Constant Tests
 
     @Test func maxMemorySizeIsConsistentAcrossClients() {
-        #expect(httpClientMaxMemorySize == 1_000_000)
+        #expect(HTTPClientConstants.maxMemorySize == 1_000_000)
     }
 }

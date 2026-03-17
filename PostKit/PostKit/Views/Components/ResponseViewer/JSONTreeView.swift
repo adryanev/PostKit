@@ -288,16 +288,18 @@ struct JSONTreeView: View {
 
 extension JSONTreeView {
     /// Expands all nodes in the tree
-    mutating func expandAll() {
+    func expandAll() {
         guard let root = rootValue else { return }
-        collectAllPaths(from: root, path: "", allPaths: &expandedPaths)
+        var allPaths = Set<String>()
+        collectAllPaths(from: root, path: "", allPaths: &allPaths)
+        expandedPaths = allPaths
     }
-    
+
     /// Collapses all nodes in the tree
-    mutating func collapseAll() {
+    func collapseAll() {
         expandedPaths.removeAll()
     }
-    
+
     private func collectAllPaths(from value: JSONValue, path: String, allPaths: inout Set<String>) {
         switch value {
         case .object(let dict):

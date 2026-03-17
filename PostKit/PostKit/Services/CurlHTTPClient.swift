@@ -3,9 +3,7 @@ import os
 
 private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "CurlHTTPClient")
 
-private let maxMemorySize: Int64 = httpClientMaxMemorySize
-// nonisolated(unsafe) needed to prevent MainActor isolation inference in Swift 6
-nonisolated(unsafe) private let maxResponseSize: Int = 100 * 1024 * 1024
+private let maxMemorySize: Int64 = HTTPClientConstants.maxMemorySize
 
 // Thread Safety Contract:
 // - All mutable state is protected by OSAllocatedUnfairLock
@@ -257,7 +255,7 @@ actor CurlHTTPClient: HTTPClientProtocol {
         let lowSpeedTime = Int(request.timeoutInterval > 0 ? request.timeoutInterval : 30)
         curl_easy_setopt_long(handle, CURLOPT_LOW_SPEED_TIME, lowSpeedTime)
 
-        curl_easy_setopt_int64(handle, CURLOPT_MAXFILESIZE_LARGE, maxResponseSize)
+        curl_easy_setopt_int64(handle, CURLOPT_MAXFILESIZE_LARGE, HTTPClientConstants.maxResponseSize)
         curl_easy_setopt_long(handle, CURLOPT_BUFFERSIZE, 256 * 1024)
         curl_easy_setopt_long(handle, CURLOPT_MAXCONNECTS, 20)
 
@@ -367,7 +365,7 @@ actor CurlHTTPClient: HTTPClientProtocol {
         case CURLE_OPERATION_TIMEDOUT:
             return .timeout
         case CURLE_FILESIZE_EXCEEDED:
-            return .responseTooLarge(Int64(maxResponseSize))
+            return .responseTooLarge(Int64(HTTPClientConstants.maxResponseSize))
         case CURLE_URL_MALFORMAT:
             return .invalidURL
         default:

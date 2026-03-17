@@ -2,11 +2,15 @@ import SwiftUI
 import SwiftData
 
 private extension Int64 {
+    private static let byteFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.allowedUnits = [.useBytes, .useKB, .useMB]
+        f.countStyle = .file
+        return f
+    }()
+    
     var formattedBytes: String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useBytes, .useKB, .useMB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: self)
+        Self.byteFormatter.string(fromByteCount: self)
     }
 }
 
@@ -48,6 +52,7 @@ struct ResponseViewerPane: View {
                 )
             } else {
                 EmptyResponseView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
@@ -71,38 +76,7 @@ struct ResponseContentView: View {
             ResponseStatusBar(response: response)
             Divider()
             
-            ZStack {
-                ResponseBodyView(response: response, onSaveAsExample: {
-                    showingSaveExample = true
-                    exampleName = "\(response.statusCode) \(defaultExampleName)"
-                })
-                .opacity(activeTab == .body ? 1 : 0)
-                .allowsHitTesting(activeTab == .body)
-                
-                ScrollView {
-                    ResponseHeadersView(headers: response.headers)
-                }
-                .opacity(activeTab == .headers ? 1 : 0)
-                .allowsHitTesting(activeTab == .headers)
-                
-                ScrollView {
-                    ResponseTimingView(duration: response.duration, size: response.size, timingBreakdown: response.timingBreakdown)
-                }
-                .opacity(activeTab == .timing ? 1 : 0)
-                .allowsHitTesting(activeTab == .timing)
-                
-                ScrollView {
-                    ConsoleTabView(output: consoleOutput, onClear: onClearConsole)
-                }
-                .opacity(activeTab == .console ? 1 : 0)
-                .allowsHitTesting(activeTab == .console)
-                
-                ScrollView {
-                    ExamplesTabView(request: request)
-                }
-                .opacity(activeTab == .examples ? 1 : 0)
-                .allowsHitTesting(activeTab == .examples)
-            }
+            activeTabContent
         }
         .alert("Save as Example", isPresented: $showingSaveExample) {
             TextField("Name", text: $exampleName)
@@ -125,6 +99,33 @@ struct ResponseContentView: View {
         let method = req.method.rawValue.uppercased()
         let path = URL(string: req.urlTemplate)?.path ?? req.urlTemplate
         return "\(method) \(path)"
+    }
+    
+    @ViewBuilder
+    private var activeTabContent: some View {
+        switch activeTab {
+        case .body:
+            ResponseBodyView(response: response, onSaveAsExample: {
+                showingSaveExample = true
+                exampleName = "\(response.statusCode) \(defaultExampleName)"
+            })
+        case .headers:
+            ScrollView {
+                ResponseHeadersView(headers: response.headers)
+            }
+        case .timing:
+            ScrollView {
+                ResponseTimingView(duration: response.duration, size: response.size, timingBreakdown: response.timingBreakdown)
+            }
+        case .console:
+            ScrollView {
+                ConsoleTabView(output: consoleOutput, onClear: onClearConsole)
+            }
+        case .examples:
+            ScrollView {
+                ExamplesTabView(request: request)
+            }
+        }
     }
     
     private func saveExample() {

@@ -9,7 +9,7 @@ struct EnvironmentPicker: View {
     
     var body: some View {
         Picker("", selection: $selectedEnvironment) {
-            Text("No Environment").tag(nil as APIEnvironment?)
+            Text("No Environment").tag(nil as EnvironmentSelection?)
             
             Divider()
             
@@ -21,20 +21,20 @@ struct EnvironmentPicker: View {
                         Image(systemName: "checkmark")
                     }
                 }
-                .tag(env as APIEnvironment?)
+                .tag(EnvironmentSelection.environment(env) as EnvironmentSelection?)
             }
             
             Divider()
             
             Text("Manage Environments...")
-                .tag(EnvironmentSelection.manage)
+                .tag(EnvironmentSelection.manage as EnvironmentSelection?)
         }
         .pickerStyle(.menu)
         .frame(minWidth: 120, alignment: .leading)
         .onAppear {
             selectedEnvironment = activeEnvironments.first.map { EnvironmentSelection.environment($0) } ?? nil
         }
-        .onChange(of: selectedEnvironment) { newValue in
+        .onChange(of: selectedEnvironment) { _, newValue in
             switch newValue {
             case .manage:
                 showingEnvironmentEditor = true
