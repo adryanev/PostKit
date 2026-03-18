@@ -115,6 +115,7 @@ final class ResponseSearchManager {
     var isSearching: Bool = false
     
     private var content: String = ""
+    private var searchTask: Task<Void, Never>?
     
     var currentMatch: SearchMatch? {
         guard currentMatchIndex >= 0 && currentMatchIndex < matches.count else { return nil }
@@ -154,68 +155,73 @@ final class ResponseSearchManager {
     }
     
     private func performSearch() {
+        searchTask?.cancel()
+
         guard !query.isEmpty else {
             matches = []
             currentMatchIndex = -1
             return
         }
-        
+
         isSearching = true
-        
+
         let searchString = content
         let searchQuery = query
-        
-        Task.detached(priority: .userInitiated) { [weak self] in
-            var foundMatches: [SearchMatch] = []
-            let lowercasedContent = searchString.lowercased()
-            let lowercasedQuery = searchQuery.lowercased()
-            
-            var searchStartIndex = lowercasedContent.startIndex
-            var line = 1
-            var lineStartIndex = lowercasedContent.startIndex
-            
-            while let range = lowercasedContent.range(of: lowercasedQuery, range: searchStartIndex..<lowercasedContent.endIndex) {
-                let nsRange = NSRange(range, in: searchString)
-                
-                // Calculate line and column
-                let prefix = lowercasedContent[lineStartIndex..<range.lowerBound]
-                let newlines = prefix.filter { $0 == "\n" }.count
-                line += newlines
-                
-                if newlines > 0 {
-                    if let lastNewline = prefix.lastIndex(of: "\n") {
-                        lineStartIndex = lowercasedContent.index(after: lastNewline)
-                    }
-                }
-                
-                let column = lowercasedContent.distance(from: lineStartIndex, to: range.lowerBound)
-                
-                // Extract snippet around the match
-                let snippetStart = max(lowercasedContent.startIndex, lowercasedContent.index(range.lowerBound, offsetBy: -20, limitedBy: lowercasedContent.startIndex) ?? range.lowerBound)
-                let snippetEnd = min(lowercasedContent.endIndex, lowercasedContent.index(range.upperBound, offsetBy: 20, limitedBy: lowercasedContent.endIndex) ?? range.upperBound)
-                let snippet = String(lowercasedContent[snippetStart..<snippetEnd])
-                
-                foundMatches.append(SearchMatch(
-                    range: nsRange,
-                    line: line,
-                    column: column,
-                    snippet: snippet
-                ))
-                
-                searchStartIndex = range.upperBound
-                
-                // Limit matches to prevent performance issues
-                if foundMatches.count >= 1000 {
-                    break
-                }
-            }
-            
-            Task { @MainActor in
-                self?.matches = foundMatches
-                self?.currentMatchIndex = foundMatches.isEmpty ? -1 : 0
-                self?.isSearching = false
-            }
+
+        searchTask = Task {
+            let foundMatches = await Task.detached(priority: .userInitiated) {
+                Self.findMatches(in: searchString, query: searchQuery)
+            }.value
+
+            guard !Task.isCancelled else { return }
+
+            matches = foundMatches
+            currentMatchIndex = foundMatches.isEmpty ? -1 : 0
+            isSearching = false
         }
+    }
+
+    nonisolated private static func findMatches(in searchString: String, query: String) -> [SearchMatch] {
+        var foundMatches: [SearchMatch] = []
+        let lowercasedContent = searchString.lowercased()
+        let lowercasedQuery = query.lowercased()
+
+        var searchStartIndex = lowercasedContent.startIndex
+        var line = 1
+        var lineStartIndex = lowercasedContent.startIndex
+
+        while let range = lowercasedContent.range(of: lowercasedQuery, range: searchStartIndex..<lowercasedContent.endIndex) {
+            let nsRange = NSRange(range, in: searchString)
+
+            let prefix = lowercasedContent[lineStartIndex..<range.lowerBound]
+            let newlines = prefix.filter { $0 == "\n" }.count
+            line += newlines
+
+            if newlines > 0 {
+                if let lastNewline = prefix.lastIndex(of: "\n") {
+                    lineStartIndex = lowercasedContent.index(after: lastNewline)
+                }
+            }
+
+            let column = lowercasedContent.distance(from: lineStartIndex, to: range.lowerBound)
+
+            let snippetStart = max(lowercasedContent.startIndex, lowercasedContent.index(range.lowerBound, offsetBy: -20, limitedBy: lowercasedContent.startIndex) ?? range.lowerBound)
+            let snippetEnd = min(lowercasedContent.endIndex, lowercasedContent.index(range.upperBound, offsetBy: 20, limitedBy: lowercasedContent.endIndex) ?? range.upperBound)
+            let snippet = String(searchString[snippetStart..<snippetEnd])
+
+            foundMatches.append(SearchMatch(
+                range: nsRange,
+                line: line,
+                column: column,
+                snippet: snippet
+            ))
+
+            searchStartIndex = range.upperBound
+
+            if foundMatches.count >= 1000 { break }
+        }
+
+        return foundMatches
     }
 }
 
