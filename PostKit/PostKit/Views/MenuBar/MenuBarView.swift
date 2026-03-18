@@ -6,8 +6,6 @@ import FactoryKit
 struct MenuBarView: View {
     @Query(filter: #Predicate<HTTPRequest> { $0.isPinned }, sort: \HTTPRequest.updatedAt, order: .reverse)
     private var pinnedRequests: [HTTPRequest]
-    
-    @Query(sort: \MockServer.name) private var mockServers: [MockServer]
 
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = MenuBarViewModel()
@@ -16,12 +14,6 @@ struct MenuBarView: View {
     private let refreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        // Mock Servers Section
-        if !mockServers.isEmpty {
-            mockServersSection
-            Divider()
-        }
-        
         // Pinned Requests Section
         if pinnedRequests.isEmpty {
             Text("No Pinned Requests")
@@ -53,52 +45,6 @@ struct MenuBarView: View {
         .keyboardShortcut("q")
     }
 
-    @ViewBuilder
-    private var mockServersSection: some View {
-        ForEach(mockServers) { server in
-            MenuBarMockServerRow(
-                server: server,
-                isRunning: viewModel.runningMockServerIDs.contains(server.id)
-            ) {
-                await viewModel.toggleMockServer(server)
-            }
-        }
-    }
-}
-
-// MARK: - Mock Server Menu Bar Row
-
-struct MenuBarMockServerRow: View {
-    let server: MockServer
-    let isRunning: Bool
-    let onToggle: () async -> Void
-    
-    var body: some View {
-        Button {
-            Task { await onToggle() }
-        } label: {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(isRunning ? Color.green : Color.gray)
-                    .frame(width: 8, height: 8)
-                
-                Text(server.name)
-                    .lineLimit(1)
-                
-                Text(":\(server.port)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                Spacer()
-                
-                if isRunning {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(.green)
-                        .font(.caption)
-                }
-            }
-        }
-    }
 }
 
 struct MenuBarRequestRow: View {

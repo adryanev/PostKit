@@ -6,7 +6,6 @@ struct CollectionsSidebar: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \RequestCollection.sortOrder) private var collections: [RequestCollection]
     @Query(sort: \RequestChain.sortOrder) private var chains: [RequestChain]
-    @Query(sort: \MockServer.createdAt, order: .reverse) private var mockServers: [MockServer]
     @State private var isAddingCollection = false
     @State private var isAddingChain = false
     @State private var newCollectionName = ""
@@ -32,34 +31,6 @@ struct CollectionsSidebar: View {
                 .onMove(perform: moveChains)
             }
             
-            // Mock Servers Section
-            Section {
-                Button {
-                    selection = .mockServersList
-                } label: {
-                    Label {
-                        HStack {
-                            Text("Mock Servers")
-                            Spacer()
-                            if !mockServers.isEmpty {
-                                Text("\(mockServers.count)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    } icon: {
-                        Image(systemName: "server.rack")
-                            .foregroundStyle(.blue)
-                    }
-                }
-                .buttonStyle(.plain)
-                
-                ForEach(mockServers) { server in
-                    MockServerSidebarRow(server: server, selection: $selection)
-                }
-            } header: {
-                Text("Mock Servers")
-            }
         }
         .listStyle(.sidebar)
         .navigationTitle("PostKit")
@@ -76,14 +47,6 @@ struct CollectionsSidebar: View {
                         isAddingChain = true
                     } label: {
                         Label("New Chain", systemImage: "link.badge.plus")
-                    }
-                    
-                    Divider()
-                    
-                    Button {
-                        selection = .mockServersList
-                    } label: {
-                        Label("New Mock Server", systemImage: "server.rack")
                     }
                 } label: {
                     Image(systemName: "plus")
@@ -149,49 +112,6 @@ struct CollectionsSidebar: View {
         revised.move(fromOffsets: source, toOffset: destination)
         for (index, chain) in revised.enumerated() {
             chain.sortOrder = index
-        }
-    }
-}
-
-// MARK: - Mock Server Sidebar Row
-
-struct MockServerSidebarRow: View {
-    let server: MockServer
-    @Binding var selection: SidebarSelection?
-    
-    var body: some View {
-        Button {
-            selection = .mockServer(server)
-        } label: {
-            Label {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(server.name)
-                        .lineLimit(1)
-                    
-                    Text(":\(server.port) • \(server.endpoints.count) endpoints")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } icon: {
-                Image(systemName: "server.rack")
-                    .foregroundStyle(server.isEnabled ? .orange : .secondary)
-            }
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            Button {
-                selection = .mockServer(server)
-            } label: {
-                Label("Open", systemImage: "arrow.right.circle")
-            }
-            
-            Divider()
-            
-            Button(role: .destructive) {
-                // Delete will be handled by parent
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
         }
     }
 }

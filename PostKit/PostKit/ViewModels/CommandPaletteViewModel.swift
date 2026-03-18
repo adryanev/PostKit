@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 import SwiftUI
+import FactoryKit
 
 @Observable
 final class CommandPaletteViewModel {
@@ -16,6 +17,7 @@ final class CommandPaletteViewModel {
     // MARK: - Dependencies
 
     private let modelContext: ModelContext
+    @ObservationIgnored @MainActor @Injected(\.navigationCoordinator) private var coordinator
 
     // MARK: - Init
 
@@ -255,89 +257,57 @@ final class CommandPaletteViewModel {
 
     // MARK: - Selection Actions
 
+    @MainActor
     private func selectRequest(_ request: HTTPRequest) {
-        // This will be handled by posting a notification or through a callback
-        NotificationCenter.default.post(
-            name: .commandPaletteSelection,
-            object: nil,
-            userInfo: ["selection": SidebarSelection.request(request)]
-        )
+        coordinator.selectItem(.request(request))
     }
 
+    @MainActor
     private func selectCollection(_ collection: RequestCollection) {
-        NotificationCenter.default.post(
-            name: .commandPaletteSelection,
-            object: nil,
-            userInfo: ["selection": SidebarSelection.collection(collection)]
-        )
+        coordinator.selectItem(.collection(collection))
     }
 
+    @MainActor
     private func selectFolder(_ folder: Folder) {
-        NotificationCenter.default.post(
-            name: .commandPaletteSelection,
-            object: nil,
-            userInfo: ["selection": SidebarSelection.folder(folder)]
-        )
+        coordinator.selectItem(.folder(folder))
     }
 
     // MARK: - Action Handlers
 
+    @MainActor
     private func createNewRequest() {
-        NotificationCenter.default.post(
-            name: .commandPaletteAction,
-            object: nil,
-            userInfo: ["action": CommandPaletteAction.newRequest]
-        )
+        coordinator.performAction(.newRequest)
     }
 
+    @MainActor
     private func createNewCollection() {
-        NotificationCenter.default.post(
-            name: .commandPaletteAction,
-            object: nil,
-            userInfo: ["action": CommandPaletteAction.newCollection]
-        )
+        coordinator.performAction(.newCollection)
     }
 
+    @MainActor
     private func importCurlCommand() {
-        NotificationCenter.default.post(
-            name: .commandPaletteAction,
-            object: nil,
-            userInfo: ["action": CommandPaletteAction.importCurl]
-        )
+        coordinator.performAction(.importCurl)
     }
 
+    @MainActor
     private func importOpenAPISpec() {
-        NotificationCenter.default.post(
-            name: .commandPaletteAction,
-            object: nil,
-            userInfo: ["action": CommandPaletteAction.importOpenAPI]
-        )
+        coordinator.performAction(.importOpenAPI)
     }
 
+    @MainActor
     private func importPostmanCollection() {
-        NotificationCenter.default.post(
-            name: .commandPaletteAction,
-            object: nil,
-            userInfo: ["action": CommandPaletteAction.importPostman]
-        )
+        coordinator.performAction(.importPostman)
     }
 }
 
 // MARK: - Action Types
 
-enum CommandPaletteAction {
+enum CommandPaletteAction: Equatable {
     case newRequest
     case newCollection
     case importCurl
     case importOpenAPI
     case importPostman
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let commandPaletteSelection = Notification.Name("commandPaletteSelection")
-    static let commandPaletteAction = Notification.Name("commandPaletteAction")
 }
 
 // MARK: - KeyEquivalent Helper

@@ -211,7 +211,7 @@ actor ChainExecutor: ChainExecutorProtocol {
 /// Non-actor wrapper for ChainExecutor that can be used from @Observable contexts.
 /// Handles ModelContext interactions and response extraction on the caller side,
 /// passing only Sendable types across the actor boundary.
-final class ChainExecutorService: Sendable {
+final class ChainExecutorService: ChainExecutorServiceProtocol, Sendable {
     private let executor = ChainExecutor()
 
     /// Executes a chain by building each step's URLRequest incrementally so that

@@ -8,8 +8,6 @@ enum SidebarSelection: Hashable {
     case folder(Folder)
     case request(HTTPRequest)
     case chain(RequestChain)
-    case mockServer(MockServer)
-    case mockServersList
 }
 
 struct ContentView: View {
@@ -18,7 +16,7 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
     @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
-    @ObservationIgnored @MainActor @Injected(\.mockServerManager) private var mockServerManager
+    @ObservationIgnored @MainActor @Injected(\.navigationCoordinator) private var coordinator
     private static var hasIndexedOnce = false
 
     enum Pane: Hashable {
@@ -43,12 +41,10 @@ struct ContentView: View {
             }
             
         }
-        .onReceive(NotificationCenter.default.publisher(for: .sidebarSelectionChange)) { notification in
-            handleSidebarSelectionChange(notification)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openMockServers)) { _ in
-            selectedSidebarItem = .mockServersList
-            NSApp.activate()
+        .onChange(of: coordinator.pendingSelection) { _, _ in
+            if let selection = coordinator.consumeSelection() {
+                selectedSidebarItem = selection
+            }
         }
         .onKeyPress(.tab) {
             if NSEvent.modifierFlags.contains(.control) {
@@ -111,10 +107,6 @@ struct ContentView: View {
             RequestDetailView(request: request)
         case .chain(let chain):
             ChainBuilderView(chain: chain, modelContext: modelContext)
-        case .mockServer(let server):
-            MockServerEditorView(server: server, viewModel: MockServerViewModel(modelContext: modelContext))
-        case .mockServersList:
-            MockServerListView()
         case .none:
             ContentUnavailableView(
                 "Select an Item",
@@ -152,15 +144,6 @@ struct ContentView: View {
         }
     }
 
-    private func handleSidebarSelectionChange(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let selection = userInfo["selection"] as? SidebarSelection else { return }
-
-        selectedSidebarItem = selection
-
-        // Activate the app to bring it to front
-        NSApp.activate()
-    }
 }
 
 #Preview {

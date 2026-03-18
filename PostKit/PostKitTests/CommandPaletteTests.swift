@@ -311,7 +311,7 @@ struct CommandPaletteViewModelTests {
         let container = try createModelContainer()
         let viewModel = CommandPaletteViewModel(modelContext: container.mainContext)
 
-        viewModel.searchText = "NonExistentItemXYZ123"
+        viewModel.updateSearch("NonExistentItemXYZ123")
         viewModel.selectNext()
 
         #expect(viewModel.selectedIndex == 0 || viewModel.selectedIndex == nil)
@@ -321,7 +321,7 @@ struct CommandPaletteViewModelTests {
         let container = try createModelContainer()
         let viewModel = CommandPaletteViewModel(modelContext: container.mainContext)
 
-        viewModel.searchText = "NonExistentItemXYZ123"
+        viewModel.updateSearch("NonExistentItemXYZ123")
         viewModel.selectPrevious()
 
         #expect(viewModel.selectedIndex == 0 || viewModel.selectedIndex == nil)

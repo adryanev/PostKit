@@ -37,8 +37,15 @@ extension Container {
         self { RequestBuilder() }
     }
 
-    nonisolated var codeGenerator: Factory<CodeGenerator> {
+    nonisolated var codeGenerator: Factory<CodeGeneratorProtocol> {
         self { CodeGenerator() }
+    }
+
+    // MARK: - Navigation
+
+    @MainActor
+    var navigationCoordinator: Factory<NavigationCoordinator> {
+        self { @MainActor in NavigationCoordinator() }.scope(.singleton)
     }
 
     // MARK: - Chain Services
@@ -47,14 +54,8 @@ extension Container {
         self { ResponseExtractor() }
     }
 
-    nonisolated var chainExecutor: Factory<ChainExecutorService> {
+    nonisolated var chainExecutor: Factory<ChainExecutorServiceProtocol> {
         self { ChainExecutorService() }
     }
 
-    // MARK: - Mock Server Services
-
-    @MainActor
-    var mockServerManager: Factory<MockServerManager> {
-        self { @MainActor in MockServerManager() }.scope(.singleton)
-    }
 }

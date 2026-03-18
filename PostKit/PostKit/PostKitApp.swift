@@ -46,6 +46,7 @@ struct PostKitApp: App {
     @State private var postmanEnvironmentCollection: RequestCollection?
     @State private var showingCommandPalette = false
     @State private var commandPaletteViewModel: CommandPaletteViewModel?
+    @ObservationIgnored @MainActor @Injected(\.navigationCoordinator) private var coordinator
 
     init() {
         Task.detached(priority: .background) {
@@ -75,10 +76,7 @@ struct PostKitApp: App {
             ResponseExample.self,
             RequestChain.self,
             ChainStep.self,
-            ChainExecutionHistory.self,
-            MockServer.self,
-            MockEndpoint.self,
-            MockResponse.self
+            ChainExecutionHistory.self
         ])
         
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
@@ -127,11 +125,10 @@ struct PostKitApp: App {
                     .zIndex(1000)
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSelection)) { notification in
-                handleCommandPaletteSelection(notification)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteAction)) { notification in
-                handleCommandPaletteAction(notification)
+            .onChange(of: coordinator.pendingAction) { _, _ in
+                if let action = coordinator.consumeAction() {
+                    handleCommandPaletteAction(action)
+                }
             }
         }
         .modelContainer(sharedModelContainer)
@@ -218,22 +215,7 @@ struct PostKitApp: App {
         showingCommandPalette = true
     }
 
-    private func handleCommandPaletteSelection(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let selection = userInfo["selection"] as? SidebarSelection else { return }
-
-        // Post to the main window to handle selection
-        NotificationCenter.default.post(
-            name: .sidebarSelectionChange,
-            object: nil,
-            userInfo: ["selection": selection]
-        )
-    }
-
-    private func handleCommandPaletteAction(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let action = userInfo["action"] as? CommandPaletteAction else { return }
-
+    private func handleCommandPaletteAction(_ action: CommandPaletteAction) {
         switch action {
         case .newRequest:
             curlImportCollection = fetchOrCreateImportCollection()
@@ -249,10 +231,4 @@ struct PostKitApp: App {
             showingPostmanImport = true
         }
     }
-}
-
-// MARK: - Sidebar Selection Notification
-
-extension Notification.Name {
-    static let sidebarSelectionChange = Notification.Name("sidebarSelectionChange")
 }
