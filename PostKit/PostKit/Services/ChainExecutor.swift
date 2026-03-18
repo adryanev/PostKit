@@ -57,7 +57,7 @@ struct ChainStepSnapshot: Sendable {
     let isEnabled: Bool
     let continueOnError: Bool
     let delayMs: Int
-    let extractionRules: [ExtractionRuleSnapshot]
+    let extractionRules: [ExtractionRule]
 
     init(from step: ChainStep) {
         self.id = step.id
@@ -67,44 +67,7 @@ struct ChainStepSnapshot: Sendable {
         self.isEnabled = step.isEnabled
         self.continueOnError = step.continueOnError
         self.delayMs = step.delayMs
-        self.extractionRules = step.extractionRules.map { ExtractionRuleSnapshot(from: $0) }
-    }
-}
-
-/// Sendable snapshot of an extraction rule for crossing actor boundaries
-struct ExtractionRuleSnapshot: Sendable {
-    let id: UUID
-    let name: String
-    let extractionType: ExtractionType
-    let pattern: String
-    let variableName: String
-    let defaultValue: String?
-    let isEnabled: Bool
-    let sortOrder: Int
-
-    init(from rule: ExtractionRule) {
-        self.id = rule.id
-        self.name = rule.name
-        self.extractionType = rule.extractionType
-        self.pattern = rule.pattern
-        self.variableName = rule.variableName
-        self.defaultValue = rule.defaultValue
-        self.isEnabled = rule.isEnabled
-        self.sortOrder = rule.sortOrder
-    }
-
-    /// Convert back to an ExtractionRule for use with ResponseExtractor
-    func toExtractionRule() -> ExtractionRule {
-        let rule = ExtractionRule(
-            name: name,
-            extractionType: extractionType,
-            pattern: pattern,
-            variableName: variableName,
-            defaultValue: defaultValue,
-            isEnabled: isEnabled
-        )
-        rule.sortOrder = sortOrder
-        return rule
+        self.extractionRules = step.extractionRules
     }
 }
 
@@ -251,8 +214,9 @@ actor ChainExecutor: ChainExecutorProtocol {
 final class ChainExecutorService: Sendable {
     private let executor = ChainExecutor()
 
-    /// Executes a chain by resolving all ModelContext-dependent data on the caller side,
-    /// then delegating network execution to the actor with only Sendable types.
+    /// Executes a chain by building each step's URLRequest incrementally so that
+    /// extracted values from step N flow into step N+1's variable interpolation.
+    /// ModelContext access stays on this (caller) side; only Sendable types cross the actor boundary.
     func execute(
         chain: RequestChain,
         modelContext: ModelContext,
@@ -265,9 +229,15 @@ final class ChainExecutorService: Sendable {
         let sortedSteps = chain.sortedSteps.filter { $0.isEnabled }
         let stepSnapshots = sortedSteps.map { ChainStepSnapshot(from: $0) }
 
-        // Pre-resolve URLRequests and request names from ModelContext (non-Sendable)
         let requestBuilder = Container.shared.requestBuilder()
-        var urlRequests: [UUID: URLRequest] = [:]
+        let responseExtractor = ResponseExtractor()
+
+        // Running variables: starts with environment, accumulates extracted values after each step
+        var runningVariables = variables
+        var finalResults: [ChainStepResult] = []
+
+        // Pre-fetch request names and HTTPRequest references for all steps (ModelContext access)
+        var requestsByStepID: [UUID: HTTPRequest] = [:]
         var requestNames: [UUID: String] = [:]
 
         for snapshot in stepSnapshots {
@@ -278,37 +248,100 @@ final class ChainExecutorService: Sendable {
                 throw ChainExecutorError.requestNotFound(requestID)
             }
 
+            requestsByStepID[snapshot.id] = request
             requestNames[snapshot.id] = request.name
-            urlRequests[snapshot.id] = try requestBuilder.buildURLRequest(
-                for: request,
-                with: variables,
-                urlOverride: nil,
-                bodyOverride: nil
-            )
         }
 
-        // Execute HTTP requests on actor with only Sendable types
-        let httpResults = try await executor.execute(
-            steps: stepSnapshots,
-            urlRequests: urlRequests,
-            requestNames: requestNames
-        )
+        // Execute steps incrementally: build URLRequest -> execute -> extract -> merge variables
+        for snapshot in stepSnapshots {
+            try Task.checkCancellation()
 
-        // Perform extraction on the caller side (where @Model types are accessible)
-        let responseExtractor = ResponseExtractor()
-        var finalResults: [ChainStepResult] = []
+            guard let request = requestsByStepID[snapshot.id] else {
+                let failResult = ChainStepResult(
+                    stepId: snapshot.id,
+                    stepName: snapshot.name,
+                    statusCode: nil,
+                    durationMs: 0,
+                    success: false,
+                    errorMessage: "No request available for step",
+                    extractedValues: [:]
+                )
+                finalResults.append(failResult)
 
-        for (index, httpResult) in httpResults.enumerated() {
-            let snapshot = stepSnapshots[index]
+                if !snapshot.continueOnError {
+                    throw ChainExecutorError.stepFailed("No request available for step")
+                }
+                continue
+            }
+
+            // Build URLRequest with the current running variables (environment + all prior extractions)
+            let urlRequest: URLRequest
+            do {
+                urlRequest = try requestBuilder.buildURLRequest(
+                    for: request,
+                    with: runningVariables,
+                    urlOverride: nil,
+                    bodyOverride: nil
+                )
+            } catch {
+                let failResult = ChainStepResult(
+                    stepId: snapshot.id,
+                    stepName: snapshot.name,
+                    statusCode: nil,
+                    durationMs: 0,
+                    success: false,
+                    errorMessage: "Failed to build request: \(error.localizedDescription)",
+                    extractedValues: [:]
+                )
+                finalResults.append(failResult)
+
+                if !snapshot.continueOnError {
+                    throw ChainExecutorError.interpolationFailed(error.localizedDescription)
+                }
+                continue
+            }
+
+            let requestName = requestNames[snapshot.id] ?? snapshot.name
+
+            // Execute HTTP request on actor (Sendable boundary)
+            let httpResult: StepHTTPResult
+            do {
+                httpResult = try await executor.executeStep(
+                    step: snapshot,
+                    urlRequest: urlRequest,
+                    requestName: requestName
+                )
+            } catch {
+                let failResult = ChainStepResult(
+                    stepId: snapshot.id,
+                    stepName: snapshot.name,
+                    statusCode: nil,
+                    durationMs: 0,
+                    success: false,
+                    errorMessage: error.localizedDescription,
+                    extractedValues: [:]
+                )
+                finalResults.append(failResult)
+
+                if !snapshot.continueOnError {
+                    throw ChainExecutorError.stepFailed(error.localizedDescription)
+                }
+                continue
+            }
+
+            // Extract values from the response
             var extractedValues: [String: String] = [:]
-
             if httpResult.success, let response = httpResult.response {
-                let extractionRules = snapshot.extractionRules.map { $0.toExtractionRule() }
                 let extractionResult = responseExtractor.extractAll(
                     from: response,
-                    using: extractionRules
+                    using: snapshot.extractionRules
                 )
                 extractedValues = extractionResult.extractedValues
+            }
+
+            // Merge extracted values into running variables for subsequent steps
+            for (key, value) in extractedValues {
+                runningVariables[key] = value
             }
 
             let result = ChainStepResult(
@@ -321,6 +354,11 @@ final class ChainExecutorService: Sendable {
                 extractedValues: extractedValues
             )
             finalResults.append(result)
+
+            // If step failed and continueOnError is false, stop the chain
+            if !httpResult.success && !snapshot.continueOnError {
+                break
+            }
         }
 
         // Update non-Sendable model objects back on the caller side

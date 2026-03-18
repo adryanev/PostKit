@@ -560,11 +560,11 @@ struct StepEditorPane: View {
                         rules = step.extractionRules
                     },
                     onRemove: { rule in
-                        viewModel.removeExtractionRule(rule)
+                        viewModel.removeExtractionRule(rule, from: step)
                         rules = step.extractionRules
                     },
                     onUpdate: { rule in
-                        viewModel.updateExtractionRule(rule)
+                        viewModel.updateExtractionRule(rule, in: step)
                         rules = step.extractionRules
                     }
                 )

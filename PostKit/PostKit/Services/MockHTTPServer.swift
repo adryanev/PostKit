@@ -9,7 +9,9 @@ actor MockHTTPServer: MockHTTPServerProtocol {
     // MARK: - Properties
     
     private let logger = OSLog(subsystem: "dev.adryanev.PostKit", category: "MockHTTPServer")
-    
+    private let maxRequestBodySize = 10 * 1024 * 1024 // 10 MB
+    private let maxConnections = 100
+
     let port: Int
     private(set) var isRunning = false
     
@@ -43,13 +45,14 @@ actor MockHTTPServer: MockHTTPServerProtocol {
     func start() async throws {
         guard !isRunning else { return }
         
-        let parameters = NWParameters.tcp
-        parameters.allowLocalEndpointReuse = true
-        
         guard let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
             throw MockServerError.invalidConfiguration
         }
-        
+
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        parameters.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: nwPort)
+
         do {
             listener = try NWListener(using: parameters, on: nwPort)
         } catch {
@@ -116,6 +119,13 @@ actor MockHTTPServer: MockHTTPServerProtocol {
     }
     
     private func handleNewConnection(_ connection: NWConnection) {
+        // Enforce max connection limit
+        if activeConnections.count >= maxConnections {
+            connection.cancel()
+            os_log(.default, log: logger, "Max connections (%d) reached, rejecting new connection", maxConnections)
+            return
+        }
+
         let connectionId = UUID()
         activeConnections[connectionId] = connection
         
@@ -149,13 +159,27 @@ actor MockHTTPServer: MockHTTPServerProtocol {
         while !headersComplete || bodyRead < contentLength {
             let chunk = await readFromConnection(connection, maxLength: 8192)
             guard !chunk.isEmpty else { break }
-            
+
             requestData.append(chunk)
-            
+
+            // Enforce request body size limit
+            if requestData.count > maxRequestBodySize {
+                let response413 = MockServerResponse(
+                    statusCode: 413,
+                    headers: ["Content-Type": "text/plain"],
+                    body: "Request entity too large".data(using: .utf8),
+                    delayMs: 0
+                )
+                await sendResponse(connection: connection, response: response413)
+                connection.cancel()
+                await removeConnection(connectionId)
+                return
+            }
+
             // Check if headers are complete
             if let headerEnd = requestData.range(of: "\r\n\r\n".data(using: .utf8)!) {
                 headersComplete = true
-                
+
                 // Parse content-length from headers
                 let headerData = requestData[0..<headerEnd.lowerBound]
                 if let headerString = String(data: headerData, encoding: .utf8),
@@ -189,14 +213,34 @@ actor MockHTTPServer: MockHTTPServerProtocol {
     }
     
     private func readFromConnection(_ connection: NWConnection, maxLength: Int) async -> Data {
-        await withCheckedContinuation { continuation in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: maxLength) { data, _, _, error in
-                if let data = data {
-                    continuation.resume(returning: data)
-                } else {
-                    continuation.resume(returning: Data())
+        await withTaskGroup(of: Data.self) { group in
+            group.addTask {
+                await withCheckedContinuation { continuation in
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: maxLength) { data, _, _, _ in
+                        if let data = data {
+                            continuation.resume(returning: data)
+                        } else {
+                            continuation.resume(returning: Data())
+                        }
+                    }
                 }
             }
+
+            group.addTask {
+                try? await Task.sleep(for: .seconds(30))
+                return Data()
+            }
+
+            // Whichever finishes first wins
+            let result = await group.next() ?? Data()
+            group.cancelAll()
+
+            // If the timeout won (empty data), cancel the connection
+            if result.isEmpty {
+                connection.cancel()
+            }
+
+            return result
         }
     }
     
@@ -324,9 +368,10 @@ actor MockHTTPServer: MockHTTPServerProtocol {
     }
     
     private func sendResponse(connection: NWConnection, response: MockServerResponse) async {
-        // Apply delay if specified
-        if response.delayMs > 0 {
-            try? await Task.sleep(nanoseconds: UInt64(response.delayMs) * 1_000_000)
+        // Apply delay if specified (capped at 30 seconds)
+        let clampedDelay = min(response.delayMs, 30000)
+        if clampedDelay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(clampedDelay) * 1_000_000)
         }
         
         var httpResponse = "HTTP/1.1 \(response.statusCode) \(statusMessage(for: response.statusCode))\r\n"
@@ -363,6 +408,7 @@ actor MockHTTPServer: MockHTTPServerProtocol {
         case 401: return "Unauthorized"
         case 403: return "Forbidden"
         case 404: return "Not Found"
+        case 413: return "Payload Too Large"
         case 500: return "Internal Server Error"
         case 502: return "Bad Gateway"
         case 503: return "Service Unavailable"

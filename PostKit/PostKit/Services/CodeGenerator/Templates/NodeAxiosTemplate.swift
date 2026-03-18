@@ -28,7 +28,7 @@ final class NodeAxiosTemplate: CodeTemplate {
         // Prepare body if present
         if let body = getBody(for: request), request.bodyType != .none {
             if request.bodyType == .json {
-                code += "const data = \(body);\n\n"
+                code += "const data = JSON.parse(\"\(escapeString(body))\");\n\n"
             } else {
                 code += "const data = `\(escapeString(body))`;\n\n"
             }

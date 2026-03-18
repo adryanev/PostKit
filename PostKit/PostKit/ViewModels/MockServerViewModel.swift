@@ -232,8 +232,8 @@ final class MockServerViewModel {
     // MARK: - Validation
     
     func validatePort(_ port: Int, for server: MockServer?) -> Bool {
-        // Port must be in valid range
-        guard port >= 1 && port <= 65535 else { return false }
+        // Port must be in valid range (1024+ to avoid privileged ports)
+        guard port >= 1024 && port <= 65535 else { return false }
         
         // Check if port is used by another server
         if let existingState = mockServerManager.runningServers.values.first(where: { $0.port == port }) {

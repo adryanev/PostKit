@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @FocusState private var focusedPane: Pane?
     @ObservationIgnored @Injected(\.spotlightIndexer) private var spotlightIndexer
-    @MainActor @Injected(\.mockServerManager) private var mockServerManager
+    @ObservationIgnored @MainActor @Injected(\.mockServerManager) private var mockServerManager
     private static var hasIndexedOnce = false
 
     enum Pane: Hashable {

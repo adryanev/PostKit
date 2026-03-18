@@ -75,7 +75,6 @@ struct PostKitApp: App {
             ResponseExample.self,
             RequestChain.self,
             ChainStep.self,
-            ExtractionRule.self,
             ChainExecutionHistory.self,
             MockServer.self,
             MockEndpoint.self,

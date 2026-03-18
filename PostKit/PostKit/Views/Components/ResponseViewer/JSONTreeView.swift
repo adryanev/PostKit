@@ -11,7 +11,7 @@ struct JSONTreeView: View {
     let onPathChange: (String) -> Void
     
     @State private var rootValue: JSONValue?
-    @State private var visibleNodes: [JSONNode] = []
+    @State private var cachedNodes: [JSONNode] = []
     @State private var parseError: String?
     @State private var isLoading = true
     
@@ -47,26 +47,28 @@ struct JSONTreeView: View {
                             path: "",
                             depth: 0
                         )
-                        
-                        // Root node
+
+                        // Root node (children handled by flattened list below)
                         JSONNodeView(
                             node: rootNode,
                             expandedPaths: $expandedPaths,
                             searchQuery: searchQuery,
                             selectedPath: selectedPath,
                             onSelect: handleSelect,
-                            onToggle: handleToggle
+                            onToggle: handleToggle,
+                            showsChildren: false
                         )
-                        
-                        // Render children based on expansion state
-                        ForEach(flattenedNodes(from: root, parentPath: "", depth: 0), id: \.id) { node in
+
+                        // Render children via cached flattened list
+                        ForEach(cachedNodes) { node in
                             JSONNodeView(
                                 node: node,
                                 expandedPaths: $expandedPaths,
                                 searchQuery: searchQuery,
                                 selectedPath: selectedPath,
                                 onSelect: handleSelect,
-                                onToggle: handleToggle
+                                onToggle: handleToggle,
+                                showsChildren: false
                             )
                         }
                     }
@@ -90,6 +92,9 @@ struct JSONTreeView: View {
         }
         .onChange(of: searchQuery) { _, newValue in
             handleSearch(newValue)
+        }
+        .onChange(of: expandedPaths) { _, _ in
+            recomputeCachedNodes()
         }
     }
     
@@ -117,19 +122,26 @@ struct JSONTreeView: View {
             var initialExpanded = Set<String>()
             collectInitialExpandedPaths(from: root, path: "", depth: 0, expanded: &initialExpanded)
             expandedPaths = initialExpanded
+            cachedNodes = flattenedNodes(from: root, parentPath: "", depth: 0)
+        }
+    }
+
+    private func recomputeCachedNodes() {
+        if let root = rootValue {
+            cachedNodes = flattenedNodes(from: root, parentPath: "", depth: 0)
         }
     }
     
     private func collectInitialExpandedPaths(from value: JSONValue, path: String, depth: Int, expanded: inout Set<String>) {
         guard depth < maxInitialDepth else { return }
-        
+
         switch value {
-        case .object(let dict):
+        case .object(let entries):
             if depth < maxInitialDepth - 1 {
                 expanded.insert(path)
-                for (key, childValue) in dict {
-                    let childPath = path.isEmpty ? key : "\(path).\(key)"
-                    collectInitialExpandedPaths(from: childValue, path: childPath, depth: depth + 1, expanded: &expanded)
+                for entry in entries {
+                    let childPath = path.isEmpty ? entry.key : "\(path).\(entry.key)"
+                    collectInitialExpandedPaths(from: entry.value, path: childPath, depth: depth + 1, expanded: &expanded)
                 }
             }
         case .array(let arr):
@@ -149,36 +161,37 @@ struct JSONTreeView: View {
     
     private func flattenedNodes(from value: JSONValue, parentPath: String, depth: Int) -> [JSONNode] {
         var nodes: [JSONNode] = []
-        
+
         switch value {
-        case .object(let dict):
+        case .object(let entries):
             guard expandedPaths.contains(parentPath) else { return nodes }
-            
-            for (key, childValue) in dict.sorted(by: { $0.key < $1.key }) {
-                let childPath = parentPath.isEmpty ? key : "\(parentPath).\(key)"
-                let node = JSONNode(key: key, value: childValue, path: childPath, depth: depth + 1)
+
+            // Entries are already pre-sorted by key at parse time
+            for entry in entries {
+                let childPath = parentPath.isEmpty ? entry.key : "\(parentPath).\(entry.key)"
+                let node = JSONNode(key: entry.key, value: entry.value, path: childPath, depth: depth + 1)
                 nodes.append(node)
-                
+
                 // Recursively add children if expanded
-                nodes.append(contentsOf: flattenedNodes(from: childValue, parentPath: childPath, depth: depth + 1))
+                nodes.append(contentsOf: flattenedNodes(from: entry.value, parentPath: childPath, depth: depth + 1))
             }
-            
+
         case .array(let arr):
             guard expandedPaths.contains(parentPath) else { return nodes }
-            
+
             for (index, childValue) in arr.enumerated() {
                 let childPath = "\(parentPath)[\(index)]"
                 let node = JSONNode(key: "\(index)", value: childValue, path: childPath, depth: depth + 1)
                 nodes.append(node)
-                
+
                 // Recursively add children if expanded
                 nodes.append(contentsOf: flattenedNodes(from: childValue, parentPath: childPath, depth: depth + 1))
             }
-            
+
         default:
             break
         }
-        
+
         return nodes
     }
     
@@ -218,39 +231,39 @@ struct JSONTreeView: View {
     
     private func findMatchingPaths(from value: JSONValue, path: String, query: String, matchingPaths: inout Set<String>) {
         let lowercased = query.lowercased()
-        
+
         switch value {
-        case .object(let dict):
-            for (key, childValue) in dict {
-                let childPath = path.isEmpty ? key : "\(path).\(key)"
-                
+        case .object(let entries):
+            for entry in entries {
+                let childPath = path.isEmpty ? entry.key : "\(path).\(entry.key)"
+
                 // Check key match
-                if key.lowercased().contains(lowercased) {
+                if entry.key.lowercased().contains(lowercased) {
                     matchingPaths.insert(childPath)
                 }
-                
+
                 // Check value match
-                if case .string(let s) = childValue, s.lowercased().contains(lowercased) {
+                if case .string(let s) = entry.value, s.lowercased().contains(lowercased) {
                     matchingPaths.insert(childPath)
                 }
-                
+
                 // Recurse
-                findMatchingPaths(from: childValue, path: childPath, query: query, matchingPaths: &matchingPaths)
+                findMatchingPaths(from: entry.value, path: childPath, query: query, matchingPaths: &matchingPaths)
             }
-            
+
         case .array(let arr):
             for (index, childValue) in arr.enumerated() {
                 let childPath = "\(path)[\(index)]"
-                
+
                 // Check value match
                 if case .string(let s) = childValue, s.lowercased().contains(lowercased) {
                     matchingPaths.insert(childPath)
                 }
-                
+
                 // Recurse
                 findMatchingPaths(from: childValue, path: childPath, query: query, matchingPaths: &matchingPaths)
             }
-            
+
         default:
             break
         }
@@ -302,12 +315,12 @@ extension JSONTreeView {
 
     private func collectAllPaths(from value: JSONValue, path: String, allPaths: inout Set<String>) {
         switch value {
-        case .object(let dict):
-            if !dict.isEmpty {
+        case .object(let entries):
+            if !entries.isEmpty {
                 allPaths.insert(path)
-                for (key, childValue) in dict {
-                    let childPath = path.isEmpty ? key : "\(path).\(key)"
-                    collectAllPaths(from: childValue, path: childPath, allPaths: &allPaths)
+                for entry in entries {
+                    let childPath = path.isEmpty ? entry.key : "\(path).\(entry.key)"
+                    collectAllPaths(from: entry.value, path: childPath, allPaths: &allPaths)
                 }
             }
         case .array(let arr):

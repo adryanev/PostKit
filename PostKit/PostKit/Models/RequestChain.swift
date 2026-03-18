@@ -17,7 +17,7 @@ final class RequestChain {
     var steps: [ChainStep] = []
     
     // Chain execution history
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .cascade, inverse: \ChainExecutionHistory.chain)
     var history: [ChainExecutionHistory] = []
     
     init(name: String, chainDescription: String? = nil) {

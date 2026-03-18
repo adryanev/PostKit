@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import FactoryKit
 
 struct CodeGeneratorView: View {
     let request: HTTPRequest
@@ -7,7 +8,7 @@ struct CodeGeneratorView: View {
     @State private var selectedLanguage = "cURL"
     @State private var generatedCode: String = ""
 
-    private let codeGenerator = CodeGenerator()
+    @Injected(\.codeGenerator) private var codeGenerator
     private var availableLanguages: [String] { codeGenerator.availableLanguages }
 
     var body: some View {

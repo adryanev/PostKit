@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Represents a node in the JSON tree structure
 struct JSONNode: Identifiable, Sendable {
-    let id = UUID()
+    var id: String { path }
     let key: String?
     let value: JSONValue
     let path: String
@@ -16,25 +16,31 @@ struct JSONNode: Identifiable, Sendable {
     
     var hasChildren: Bool {
         switch value {
-        case .object(let dict):
-            return !dict.isEmpty
+        case .object(let entries):
+            return !entries.isEmpty
         case .array(let arr):
             return !arr.isEmpty
         default:
             return false
         }
     }
-    
+
     var childCount: Int {
         switch value {
-        case .object(let dict):
-            return dict.count
+        case .object(let entries):
+            return entries.count
         case .array(let arr):
             return arr.count
         default:
             return 0
         }
     }
+}
+
+/// Key-value entry for a JSON object, pre-sorted by key at parse time
+struct JSONObjectEntry: Sendable, Equatable {
+    let key: String
+    let value: JSONValue
 }
 
 /// Represents a JSON value type
@@ -44,7 +50,7 @@ indirect enum JSONValue: Sendable, Equatable {
     case number(Double)
     case string(String)
     case array([JSONValue])
-    case object([String: JSONValue])
+    case object([JSONObjectEntry])
     
     var typeIndicator: String {
         switch self {
@@ -82,7 +88,9 @@ indirect enum JSONValue: Sendable, Equatable {
         case let array as [Any]:
             return .array(array.map { from($0) })
         case let dict as [String: Any]:
-            return .object(dict.mapValues { from($0) })
+            let sortedEntries = dict.sorted(by: { $0.key < $1.key })
+                .map { JSONObjectEntry(key: $0.key, value: from($0.value)) }
+            return .object(sortedEntries)
         default:
             return .null
         }
@@ -101,8 +109,12 @@ indirect enum JSONValue: Sendable, Equatable {
             return s
         case .array(let arr):
             return arr.map { $0.toAny() }
-        case .object(let dict):
-            return dict.mapValues { $0.toAny() }
+        case .object(let entries):
+            var dict: [String: Any] = [:]
+            for entry in entries {
+                dict[entry.key] = entry.value.toAny()
+            }
+            return dict
         }
     }
 }
@@ -117,6 +129,8 @@ struct JSONNodeView: View {
     let selectedPath: String?
     let onSelect: (JSONNode) -> Void
     let onToggle: (JSONNode) -> Void
+    /// When `false`, children are not rendered inline (used by JSONTreeView's flattened list approach)
+    var showsChildren: Bool = true
     
     @Environment(\.colorScheme) private var colorScheme
     
@@ -211,8 +225,8 @@ struct JSONNodeView: View {
                 onSelect(node)
             }
             
-            // Children (if expanded)
-            if isExpanded {
+            // Children (if expanded and inline rendering is enabled)
+            if showsChildren && isExpanded {
                 childrenView
             }
         }
@@ -254,8 +268,8 @@ struct JSONNodeView: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.secondary)
             
-        case .object(let dict):
-            Text(isExpanded ? "{" : "{\(dict.count) keys}")
+        case .object(let entries):
+            Text(isExpanded ? "{" : "{\(entries.count) keys}")
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.secondary)
         }
@@ -282,12 +296,12 @@ struct JSONNodeView: View {
                 )
             }
             
-        case .object(let dict):
-            ForEach(dict.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+        case .object(let entries):
+            ForEach(entries, id: \.key) { entry in
                 let childNode = JSONNode(
-                    key: key,
-                    value: value,
-                    path: node.path.isEmpty ? key : "\(node.path).\(key)",
+                    key: entry.key,
+                    value: entry.value,
+                    path: node.path.isEmpty ? entry.key : "\(node.path).\(entry.key)",
                     depth: node.depth + 1
                 )
                 JSONNodeView(

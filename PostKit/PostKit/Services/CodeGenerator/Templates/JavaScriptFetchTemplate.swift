@@ -32,7 +32,7 @@ final class JavaScriptFetchTemplate: CodeTemplate {
             code += "\n    body: "
 
             if request.bodyType == .json {
-                code += escapeString(body)
+                code += "JSON.parse(\"\(escapeString(body))\")"
             } else {
                 code += "\"\(escapeString(body))\""
             }

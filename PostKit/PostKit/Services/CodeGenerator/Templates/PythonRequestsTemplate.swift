@@ -6,7 +6,12 @@ final class PythonRequestsTemplate: CodeTemplate {
     let fileExtension = "py"
 
     func generateCode(for request: HTTPRequest) -> String {
-        var code = "import requests\n\n"
+        let needsJsonImport = getBody(for: request) != nil && request.bodyType == .json
+        var code = "import requests\n"
+        if needsJsonImport {
+            code += "import json\n"
+        }
+        code += "\n"
 
         // Prepare headers
         let headers = getHeaders(from: request).filter { $0.isEnabled && !$0.key.isEmpty }
@@ -27,7 +32,10 @@ final class PythonRequestsTemplate: CodeTemplate {
         // Prepare body if present
         if let body = getBody(for: request), request.bodyType != .none {
             if request.bodyType == .json {
-                code += "data = \"\"\"\(escapeString(body))\n\"\"\"\n\n"
+                let escapedBody = body
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "'", with: "\\'")
+                code += "data = json.loads('\(escapedBody)')\n\n"
             } else {
                 code += "data = \"\"\"\(escapeString(body))\n\"\"\"\n\n"
             }

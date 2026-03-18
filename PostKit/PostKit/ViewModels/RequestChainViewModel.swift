@@ -30,7 +30,7 @@ final class RequestChainViewModel {
     @ObservationIgnored @Injected(\.httpClient) private var httpClient
     @ObservationIgnored @Injected(\.requestBuilder) private var requestBuilder
     
-    private let executor = ChainExecutorService()
+    @ObservationIgnored @Injected(\.chainExecutor) private var executor
     private var executionTask: Task<Void, Never>?
     
     // MARK: - Init
@@ -144,32 +144,29 @@ final class RequestChainViewModel {
     // MARK: - Extraction Rule Management
     
     func addExtractionRule(to step: ChainStep, type: ExtractionType = .jsonPath) -> ExtractionRule {
-        let rule = ExtractionRule(
+        var rule = ExtractionRule(
             name: "New Extraction",
             extractionType: type,
             variableName: ""
         )
         rule.sortOrder = step.extractionRules.count
-        rule.chainStep = step
-        
+
         var rules = step.extractionRules
         rules.append(rule)
         step.extractionRules = rules
-        
+
         try? modelContext.save()
         return rule
     }
-    
-    func removeExtractionRule(_ rule: ExtractionRule) {
-        guard let step = rule.chainStep else { return }
+
+    func removeExtractionRule(_ rule: ExtractionRule, from step: ChainStep) {
         var rules = step.extractionRules
         rules.removeAll { $0.id == rule.id }
         step.extractionRules = rules
         try? modelContext.save()
     }
-    
-    func updateExtractionRule(_ rule: ExtractionRule) {
-        guard let step = rule.chainStep else { return }
+
+    func updateExtractionRule(_ rule: ExtractionRule, in step: ChainStep) {
         var rules = step.extractionRules
         if let index = rules.firstIndex(where: { $0.id == rule.id }) {
             rules[index] = rule
