@@ -3,7 +3,7 @@ import Foundation
 /// Service for generating code snippets from HTTP requests in various languages
 final class CodeGenerator {
     /// All available code templates
-    private let templates: [CodeTemplate] = [
+    private let templates: [CodeTemplateProtocol] = [
         SwiftURLSessionTemplate(),
         CurlTemplate(),
         PythonRequestsTemplate(),

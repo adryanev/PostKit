@@ -1,7 +1,7 @@
 import Foundation
 
 /// Generates Swift code using URLSession with async/await
-final class SwiftURLSessionTemplate: CodeTemplate {
+final class SwiftURLSessionTemplate: CodeTemplateProtocol {
     let displayName = "Swift"
     let fileExtension = "swift"
 

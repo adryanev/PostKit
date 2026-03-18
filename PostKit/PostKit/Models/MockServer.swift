@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 /// Server status enumeration
 enum MockServerStatus: String, Codable, Sendable, Equatable {
@@ -28,8 +29,6 @@ enum MockServerStatus: String, Codable, Sendable, Equatable {
         }
     }
 }
-
-import SwiftUI
 
 /// Represents a mock server configuration
 @Model
@@ -80,13 +79,6 @@ final class MockServer {
     /// Returns the server URL as a string
     var serverURL: String {
         "http://localhost:\(port)"
-    }
-    
-    /// Finds a matching endpoint for a request
-    func findMatchingEndpoint(path: String, method: HTTPMethod) -> MockEndpoint? {
-        endpoints.first { endpoint in
-            endpoint.isEnabled && endpoint.matches(requestPath: path, requestMethod: method)
-        }
     }
     
     func duplicated() -> MockServer {

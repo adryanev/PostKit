@@ -32,6 +32,7 @@ final class CommandPaletteViewModel {
         searchText = ""
         selectedIndex = 0
         loadSearchableItems()
+        recomputeFilteredItems()
     }
 
     /// Hides the command palette.
@@ -53,6 +54,7 @@ final class CommandPaletteViewModel {
     /// Updates the search text and filters results.
     func updateSearch(_ text: String) {
         searchText = text
+        recomputeFilteredItems()
         selectedIndex = filteredItems.isEmpty ? nil : 0
     }
 
@@ -103,25 +105,47 @@ final class CommandPaletteViewModel {
         }
     }
 
-    // MARK: - Computed Properties
+    // MARK: - Cached Filtered Results
 
     /// All items flattened and filtered by search text.
-    var filteredItems: [SearchableItem] {
-        guard !searchText.isEmpty else { return allItems }
-
-        let searchLower = searchText.lowercased()
-        return allItems.filter { item in
-            item.searchText.lowercased().contains(searchLower)
-        }
-    }
+    var filteredItems: [SearchableItem] = []
 
     /// Groups filtered items by category.
-    var filteredGroupedItems: [String: [SearchableItem]] {
+    var filteredGroupedItems: [String: [SearchableItem]] = [:]
+
+    /// Lookup from "category:displayTitle" to flat index for O(1) row lookups.
+    private var flatIndexLookup: [String: Int] = [:]
+
+    /// Returns the flat index for a given item using the pre-built lookup.
+    func flatIndex(for item: SearchableItem) -> Int {
+        flatIndexLookup["\(item.category):\(item.displayTitle)"] ?? 0
+    }
+
+    private func recomputeFilteredItems() {
+        if searchText.isEmpty {
+            filteredItems = allItems
+        } else {
+            let searchLower = searchText.lowercased()
+            filteredItems = allItems.filter { $0.searchText.lowercased().contains(searchLower) }
+        }
+        recomputeGroupedItems()
+        rebuildFlatIndexLookup()
+    }
+
+    private func recomputeGroupedItems() {
         var grouped: [String: [SearchableItem]] = [:]
         for item in filteredItems {
             grouped[item.category, default: []].append(item)
         }
-        return grouped
+        filteredGroupedItems = grouped
+    }
+
+    private func rebuildFlatIndexLookup() {
+        flatIndexLookup = [:]
+        for (index, item) in filteredItems.enumerated() {
+            let key = "\(item.category):\(item.displayTitle)"
+            flatIndexLookup[key] = index
+        }
     }
 
     /// Returns the item at the given index in the filtered list.
@@ -180,6 +204,7 @@ final class CommandPaletteViewModel {
 
         allItems = items
         groupedItems = Dictionary(grouping: items) { $0.category }
+        recomputeFilteredItems()
     }
 
     /// Builds the list of global actions available in the command palette.

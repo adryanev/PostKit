@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 import FactoryKit
 
 struct MenuBarResult {
@@ -18,8 +19,6 @@ struct MenuBarResult {
         }
     }
 }
-
-import SwiftUI
 
 @Observable
 final class MenuBarViewModel {

@@ -27,23 +27,14 @@ protocol MockHTTPServerProtocol: Sendable {
 /// Errors that can occur when running a mock server
 enum MockServerError: LocalizedError, Sendable {
     case portInUse(Int)
-    case failedToStart(Error)
-    case failedToStop(Error)
     case invalidConfiguration
-    case endpointNotFound(String, String)
-    
+
     var errorDescription: String? {
         switch self {
         case .portInUse(let port):
             return "Port \(port) is already in use"
-        case .failedToStart(let error):
-            return "Failed to start server: \(error.localizedDescription)"
-        case .failedToStop(let error):
-            return "Failed to stop server: \(error.localizedDescription)"
         case .invalidConfiguration:
             return "Invalid server configuration"
-        case .endpointNotFound(let method, let path):
-            return "No endpoint found for \(method) \(path)"
         }
     }
 }

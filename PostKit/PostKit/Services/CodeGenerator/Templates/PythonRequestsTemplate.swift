@@ -1,7 +1,7 @@
 import Foundation
 
 /// Generates Python code using requests library
-final class PythonRequestsTemplate: CodeTemplate {
+final class PythonRequestsTemplate: CodeTemplateProtocol {
     let displayName = "Python"
     let fileExtension = "py"
 

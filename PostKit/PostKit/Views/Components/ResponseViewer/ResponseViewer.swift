@@ -290,8 +290,7 @@ struct ResponseViewer: View {
     }
     
     private func copyToClipboard() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(rawText, forType: .string)
+        PostKit.copyToClipboard(rawText)
     }
     
     private func expandAllNodes() {

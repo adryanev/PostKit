@@ -1,7 +1,7 @@
 import Foundation
 
 /// Generates Node.js code using axios
-final class NodeAxiosTemplate: CodeTemplate {
+final class NodeAxiosTemplate: CodeTemplateProtocol {
     let displayName = "Node.js"
     let fileExtension = "js"
 

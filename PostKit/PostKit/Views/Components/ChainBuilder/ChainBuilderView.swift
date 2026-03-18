@@ -568,16 +568,5 @@ struct ChainStepNodeView: View {
         return Color(.windowBackgroundColor)
     }
     
-    private func copyToClipboard(_ string: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(string, forType: .string)
-    }
-}
-
-// MARK: - Helper
-
-func copyToClipboard(_ string: String) {
-    NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString(string, forType: .string)
 }
 

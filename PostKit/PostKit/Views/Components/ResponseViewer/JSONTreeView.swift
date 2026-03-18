@@ -297,46 +297,6 @@ struct JSONTreeView: View {
     }
 }
 
-// MARK: - Expand All / Collapse All
-
-extension JSONTreeView {
-    /// Expands all nodes in the tree
-    func expandAll() {
-        guard let root = rootValue else { return }
-        var allPaths = Set<String>()
-        collectAllPaths(from: root, path: "", allPaths: &allPaths)
-        expandedPaths = allPaths
-    }
-
-    /// Collapses all nodes in the tree
-    func collapseAll() {
-        expandedPaths.removeAll()
-    }
-
-    private func collectAllPaths(from value: JSONValue, path: String, allPaths: inout Set<String>) {
-        switch value {
-        case .object(let entries):
-            if !entries.isEmpty {
-                allPaths.insert(path)
-                for entry in entries {
-                    let childPath = path.isEmpty ? entry.key : "\(path).\(entry.key)"
-                    collectAllPaths(from: entry.value, path: childPath, allPaths: &allPaths)
-                }
-            }
-        case .array(let arr):
-            if !arr.isEmpty {
-                allPaths.insert(path)
-                for (index, childValue) in arr.enumerated() {
-                    let childPath = "\(path)[\(index)]"
-                    collectAllPaths(from: childValue, path: childPath, allPaths: &allPaths)
-                }
-            }
-        default:
-            break
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview {

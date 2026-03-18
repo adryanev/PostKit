@@ -10,6 +10,7 @@ import Foundation
 import SwiftData
 @testable import PostKit
 
+@MainActor
 struct CommandPaletteViewModelTests {
 
     // MARK: - Test Setup

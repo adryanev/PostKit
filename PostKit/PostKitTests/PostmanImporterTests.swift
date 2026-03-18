@@ -3,6 +3,7 @@ import Foundation
 import SwiftData
 @testable import PostKit
 
+@MainActor
 struct PostmanImporterTests {
     
     private func makeFormDataCollection(formData: [[String: Any]]) -> Data {
@@ -28,7 +29,6 @@ struct PostmanImporterTests {
         return try! JSONSerialization.data(withJSONObject: json)
     }
     
-    @MainActor
     @Test func formDataEncodesEqualsInKey() throws {
         let formData: [[String: Any]] = [
             ["key": "field=name", "value": "test", "type": "text"]
@@ -47,7 +47,6 @@ struct PostmanImporterTests {
         #expect(request.bodyContent?.contains("field%3Dname=test") == true)
     }
     
-    @MainActor
     @Test func formDataEncodesEqualsInValue() throws {
         let formData: [[String: Any]] = [
             ["key": "query", "value": "a=b&c=d", "type": "text"]
@@ -66,7 +65,6 @@ struct PostmanImporterTests {
         #expect(request.bodyContent?.contains("query=a%3Db%26c%3Dd") == true)
     }
     
-    @MainActor
     @Test func formDataEncodesNewlineInKey() throws {
         let formData: [[String: Any]] = [
             ["key": "multi\nline", "value": "value", "type": "text"]
@@ -86,7 +84,6 @@ struct PostmanImporterTests {
         #expect(request.bodyContent?.contains("\n") == false || request.bodyContent?.contains("%0A") == true)
     }
     
-    @MainActor
     @Test func formDataEncodesNewlineInValue() throws {
         let formData: [[String: Any]] = [
             ["key": "message", "value": "line1\nline2", "type": "text"]
@@ -105,7 +102,6 @@ struct PostmanImporterTests {
         #expect(request.bodyContent?.contains("message=line1%0Aline2") == true)
     }
     
-    @MainActor
     @Test func formDataMultiplePairsWithAmpersandSeparator() throws {
         let formData: [[String: Any]] = [
             ["key": "username", "value": "john", "type": "text"],
@@ -128,7 +124,6 @@ struct PostmanImporterTests {
         #expect(pairs.contains("email=john%40example.com"))
     }
     
-    @MainActor
     @Test func formDataSkipsEmptyKey() throws {
         let formData: [[String: Any]] = [
             ["key": "", "value": "ignored", "type": "text"],
@@ -148,7 +143,6 @@ struct PostmanImporterTests {
         #expect(request.bodyContent == "valid=kept")
     }
     
-    @MainActor
     @Test func formDataEncodesSpecialCharacters() throws {
         let formData: [[String: Any]] = [
             ["key": "data", "value": "hello world & <test>", "type": "text"]

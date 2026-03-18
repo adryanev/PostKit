@@ -51,19 +51,7 @@ protocol ResponseExtractorProtocol: Sendable {
 
 /// Service for extracting values from HTTP responses using various extraction types
 final class ResponseExtractor: ResponseExtractorProtocol, Sendable {
-    
-    // MARK: - JSONPath Parsing
-    
-    private let jsonPathRegex: NSRegularExpression
-    
-    init() {
-        // Regex for parsing JSONPath segments: $.store.book[0].title or $['store']['book'][0]['title']
-        // swiftlint:disable:next force_try
-        jsonPathRegex = try! NSRegularExpression(
-            pattern: #"^(\$|@)((?:\.[^\.\[\]]+)|(?:\['[^']+'\])|(?:\[\d+\]))*"$"#
-        )
-    }
-    
+
     // MARK: - Single Extraction
     
     func extract(from response: HTTPResponse, using rule: ExtractionRule) -> Result<String, ExtractionError> {
@@ -228,17 +216,23 @@ final class ResponseExtractor: ResponseExtractorProtocol, Sendable {
         guard !pattern.isEmpty else {
             return .failure(.invalidPattern("Empty regex pattern"))
         }
-        
+
+        guard pattern.count <= 500 else {
+            return .failure(.invalidPattern("Regex pattern too long (max 500 characters)"))
+        }
+
         do {
             let bodyData = try response.getBodyData()
             guard let bodyString = String(data: bodyData, encoding: .utf8) else {
                 return .failure(.parseError("Response is not valid UTF-8"))
             }
-            
+
             let regex = try NSRegularExpression(pattern: pattern)
             let range = NSRange(bodyString.startIndex..., in: bodyString)
-            
-            guard let match = regex.firstMatch(in: bodyString, range: range) else {
+            // Only search first 1MB of text to prevent excessive processing
+            let searchRange = NSRange(location: 0, length: min(range.length, 1_000_000))
+
+            guard let match = regex.firstMatch(in: bodyString, range: searchRange) else {
                 return .failure(.valueNotFound(pattern))
             }
             

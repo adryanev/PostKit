@@ -55,6 +55,6 @@ extension Container {
 
     @MainActor
     var mockServerManager: Factory<MockServerManager> {
-        self { @MainActor in MockServerManager.shared }.scope(.singleton)
+        self { @MainActor in MockServerManager() }.scope(.singleton)
     }
 }

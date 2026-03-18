@@ -1,7 +1,7 @@
 import Foundation
 
 /// Generates cURL command
-final class CurlTemplate: CodeTemplate {
+final class CurlTemplate: CodeTemplateProtocol {
     let displayName = "cURL"
     let fileExtension = "sh"
 

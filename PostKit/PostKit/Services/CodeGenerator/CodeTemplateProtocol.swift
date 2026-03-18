@@ -1,7 +1,7 @@
 import Foundation
 
 /// Protocol for generating code snippets from HTTP requests in various programming languages
-protocol CodeTemplate {
+protocol CodeTemplateProtocol {
     /// The display name of the language (e.g., "Swift", "Python")
     var displayName: String { get }
 
@@ -15,7 +15,7 @@ protocol CodeTemplate {
 }
 
 /// Extension providing common helper methods for templates
-extension CodeTemplate {
+extension CodeTemplateProtocol {
     /// Decode headers data to key-value pairs
     func getHeaders(from request: HTTPRequest) -> [KeyValuePair] {
         [KeyValuePair].decode(from: request.headersData)

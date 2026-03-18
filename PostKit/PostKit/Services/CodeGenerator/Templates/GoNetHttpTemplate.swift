@@ -1,7 +1,7 @@
 import Foundation
 
 /// Generates Go code using net/http
-final class GoNetHttpTemplate: CodeTemplate {
+final class GoNetHttpTemplate: CodeTemplateProtocol {
     let displayName = "Go"
     let fileExtension = "go"
 

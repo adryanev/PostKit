@@ -44,7 +44,11 @@ final class RequestChainViewModel {
     func createChain(name: String, chainDescription: String? = nil) -> RequestChain {
         let chain = RequestChain(name: name, chainDescription: chainDescription)
         modelContext.insert(chain)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         return chain
     }
     
@@ -54,7 +58,11 @@ final class RequestChainViewModel {
             modelContext.delete(history)
         }
         modelContext.delete(chain)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         
         if selectedChain == chain {
             selectedChain = nil
@@ -65,7 +73,11 @@ final class RequestChainViewModel {
     func duplicateChain(_ chain: RequestChain) -> RequestChain {
         let copy = chain.duplicated()
         modelContext.insert(copy)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         return copy
     }
     
@@ -79,7 +91,11 @@ final class RequestChainViewModel {
         )
         step.chain = chain
         chain.steps.append(step)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         return step
     }
     
@@ -87,7 +103,11 @@ final class RequestChainViewModel {
         guard let chain = step.chain else { return }
         chain.steps.removeAll { $0.id == step.id }
         reorderSteps(in: chain)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         
         if selectedStep == step {
             selectedStep = nil
@@ -106,7 +126,11 @@ final class RequestChainViewModel {
         }
         
         chain.steps.append(copy)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         return copy
     }
     
@@ -138,7 +162,11 @@ final class RequestChainViewModel {
         }
         
         step.stepOrder = newIndex
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
     }
     
     // MARK: - Extraction Rule Management
@@ -155,7 +183,11 @@ final class RequestChainViewModel {
         rules.append(rule)
         step.extractionRules = rules
 
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
         return rule
     }
 
@@ -163,7 +195,11 @@ final class RequestChainViewModel {
         var rules = step.extractionRules
         rules.removeAll { $0.id == rule.id }
         step.extractionRules = rules
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
     }
 
     func updateExtractionRule(_ rule: ExtractionRule, in step: ChainStep) {
@@ -172,7 +208,11 @@ final class RequestChainViewModel {
             rules[index] = rule
         }
         step.extractionRules = rules
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
     }
     
     // MARK: - Chain Execution
@@ -219,7 +259,11 @@ final class RequestChainViewModel {
                     
                     self.executionState = .completed
                     self.isExecuting = false
-                    try? self.modelContext.save()
+                    do {
+                        try self.modelContext.save()
+                    } catch {
+                        print("[RequestChainViewModel] Failed to save: \(error)")
+                    }
                 }
                 
             } catch is CancellationError {
@@ -304,7 +348,11 @@ final class RequestChainViewModel {
         for history in chain.history {
             modelContext.delete(history)
         }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[RequestChainViewModel] Failed to save: \(error)")
+        }
     }
     
     func loadHistory(_ history: ChainExecutionHistory) {

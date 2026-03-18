@@ -346,7 +346,7 @@ actor MockHTTPServer: MockHTTPServerProtocol {
         
         // Add CORS headers if enabled
         if corsEnabled {
-            headers["Access-Control-Allow-Origin"] = "*"
+            headers["Access-Control-Allow-Origin"] = "http://localhost"
             headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
             headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
         }

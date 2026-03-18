@@ -1,16 +1,16 @@
 import Foundation
 import SwiftData
 import os
-import Combine
 
 /// Manages multiple mock HTTP servers
 @MainActor
-final class MockServerManager: ObservableObject {
-    
-    // MARK: - Published Properties
-    
-    @Published private(set) var runningServers: [UUID: ServerState] = [:]
-    @Published private(set) var isInitialized = false
+@Observable
+final class MockServerManager {
+
+    // MARK: - Observable Properties
+
+    private(set) var runningServers: [UUID: ServerState] = [:]
+    private(set) var isInitialized = false
     
     // MARK: - Types
     
@@ -28,11 +28,9 @@ final class MockServerManager: ObservableObject {
     private let logger = OSLog(subsystem: "dev.adryanev.PostKit", category: "MockServerManager")
     private var modelContext: ModelContext?
     
-    // MARK: - Singleton
-    
-    static let shared = MockServerManager()
-    
-    private init() {}
+    // MARK: - Init
+
+    init() {}
     
     // MARK: - Configuration
     
@@ -223,20 +221,7 @@ final class MockServerManager: ObservableObject {
     }
     
     // MARK: - Statistics
-    
-    /// Increments the request count for a server
-    func recordRequest(for serverId: UUID) {
-        guard var state = runningServers[serverId] else { return }
-        state.requestCount += 1
-        state.lastRequestTime = Date()
-        runningServers[serverId] = state
-    }
-    
-    /// Gets the total request count across all servers
-    var totalRequestCount: Int {
-        runningServers.values.reduce(0) { $0 + $1.requestCount }
-    }
-    
+
     /// Gets the count of running servers
     var runningServerCount: Int {
         runningServers.values.filter { $0.status == .running }.count

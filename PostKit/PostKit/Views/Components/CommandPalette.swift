@@ -130,13 +130,12 @@ struct CommandPalette: View {
 
     private var resultsListView: some View {
         ScrollViewReader { proxy in
-            let flatItems = viewModel.filteredItems
             List(selection: $viewModel.selectedIndex) {
                 ForEach(Array(viewModel.filteredGroupedItems.keys.sorted()), id: \.self) { category in
                     if let items = viewModel.filteredGroupedItems[category], !items.isEmpty {
                         Section(header: categoryHeader(category)) {
                             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                let flatIndex: Int = flatItems.firstIndex(where: { $0.displayTitle == item.displayTitle && $0.category == item.category }) ?? 0
+                                let flatIndex = viewModel.flatIndex(for: item)
                                 ItemRow(
                                     item: item,
                                     index: flatIndex,

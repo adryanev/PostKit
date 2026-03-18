@@ -1,7 +1,7 @@
 import Foundation
 
 /// Generates JavaScript code using Fetch API
-final class JavaScriptFetchTemplate: CodeTemplate {
+final class JavaScriptFetchTemplate: CodeTemplateProtocol {
     let displayName = "JavaScript"
     let fileExtension = "js"
 
