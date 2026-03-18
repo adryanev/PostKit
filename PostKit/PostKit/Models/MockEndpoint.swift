@@ -8,7 +8,7 @@ final class MockEndpoint {
     var path: String
     var methodRaw: String
     var name: String
-    var description: String?
+    var endpointDescription: String?
     var isEnabled: Bool
     var createdAt: Date
     var updatedAt: Date
@@ -31,14 +31,14 @@ final class MockEndpoint {
         path: String,
         method: HTTPMethod = .get,
         name: String? = nil,
-        description: String? = nil,
+        endpointDescription: String? = nil,
         isEnabled: Bool = true
     ) {
         self.id = UUID()
         self.path = path
         self.methodRaw = method.rawValue
         self.name = name ?? "\(method.rawValue) \(path)"
-        self.description = description
+        self.endpointDescription = endpointDescription
         self.isEnabled = isEnabled
         self.createdAt = Date()
         self.updatedAt = Date()
@@ -49,7 +49,7 @@ final class MockEndpoint {
             path: path,
             method: method,
             name: "\(name) (Copy)",
-            description: description,
+            endpointDescription: endpointDescription,
             isEnabled: isEnabled
         )
         for response in responses {
@@ -116,7 +116,7 @@ extension MockEndpoint {
             path: openAPIEndpoint.path,
             method: openAPIEndpoint.method,
             name: openAPIEndpoint.name,
-            description: openAPIEndpoint.description,
+            endpointDescription: openAPIEndpoint.description,
             isEnabled: true
         )
         

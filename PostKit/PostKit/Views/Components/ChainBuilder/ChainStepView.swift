@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Individual step view component for use in chains
 struct ChainStepView: View {
@@ -294,9 +295,10 @@ struct ChainStepView: View {
         case .put: return .orange
         case .patch: return Color(red: 0.8, green: 0.6, blue: 0)
         case .delete: return .red
+        case .head, .options: return .gray
         }
     }
-    
+
     private var methodBackgroundColor: Color {
         guard let request = request else { return .clear }
         switch request.method {
@@ -305,9 +307,10 @@ struct ChainStepView: View {
         case .put: return Color.orange.opacity(0.15)
         case .patch: return Color(red: 0.8, green: 0.6, blue: 0).opacity(0.15)
         case .delete: return Color.red.opacity(0.15)
+        case .head, .options: return Color.gray.opacity(0.15)
         }
     }
-    
+
     // MARK: - Helpers
     
     private func truncated(_ string: String, maxLength: Int) -> String {
@@ -381,51 +384,3 @@ struct CompactChainStepView: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: ChainStep.self, HTTPRequest.self, configurations: config)
-    
-    let request = HTTPRequest(name: "Get User", method: .get, url: "https://api.example.com/users/{{userId}}")
-    container.mainContext.insert(request)
-    
-    let step = ChainStep(name: "Fetch User Details", requestID: request.id)
-    container.mainContext.insert(step)
-    
-    return VStack(spacing: 20) {
-        ChainStepView(
-            step: step,
-            request: request,
-            result: nil,
-            isSelected: false,
-            isExecuting: false,
-            onTap: {},
-            onRun: {},
-            onEdit: {},
-            onDelete: {}
-        )
-        
-        ChainStepView(
-            step: step,
-            request: request,
-            result: ChainStepResult(
-                stepId: step.id,
-                stepName: step.name,
-                statusCode: 200,
-                durationMs: 150,
-                success: true,
-                extractedValues: ["userId": "12345", "token": "abc-def-ghi"]
-            ),
-            isSelected: true,
-            isExecuting: false,
-            onTap: {},
-            onRun: {},
-            onEdit: {},
-            onDelete: {}
-        )
-    }
-    .padding()
-    .frame(width: 500)
-    .modelContainer(container)
-}

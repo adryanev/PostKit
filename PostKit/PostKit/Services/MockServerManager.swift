@@ -14,7 +14,7 @@ final class MockServerManager: ObservableObject {
     
     // MARK: - Types
     
-    struct ServerState: Sendable {
+    struct ServerState: Sendable, Equatable {
         let port: Int
         var status: MockServerStatus
         var errorMessage: String?

@@ -52,11 +52,23 @@ struct MenuBarView: View {
         }
         .keyboardShortcut("q")
     }
+
+    @ViewBuilder
+    private var mockServersSection: some View {
+        ForEach(mockServers) { server in
+            MenuBarMockServerRow(
+                server: server,
+                isRunning: viewModel.runningMockServerIDs.contains(server.id)
+            ) {
+                await viewModel.toggleMockServer(server)
+            }
+        }
+    }
 }
 
 // MARK: - Mock Server Menu Bar Row
 
-struct MockServerMenuBarRow: View {
+struct MenuBarMockServerRow: View {
     let server: MockServer
     let isRunning: Bool
     let onToggle: () async -> Void

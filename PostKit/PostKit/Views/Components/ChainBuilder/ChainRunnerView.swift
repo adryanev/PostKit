@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// View for running chains and viewing results in real-time
 struct ChainRunnerView: View {
@@ -438,6 +439,7 @@ struct AddRequestToChainSheet: View {
         case .put: return .orange
         case .patch: return .yellow
         case .delete: return .red
+        case .head, .options: return .gray
         }
     }
 }
@@ -451,7 +453,7 @@ struct ChainSettingsSheet: View {
     
     init(chain: RequestChain) {
         self.chain = chain
-        self._description = State(initialValue: chain.description ?? "")
+        self._description = State(initialValue: chain.chainDescription ?? "")
     }
     
     var body: some View {
@@ -490,7 +492,7 @@ struct ChainSettingsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        chain.description = description.isEmpty ? nil : description
+                        chain.chainDescription = description.isEmpty ? nil : description
                         dismiss()
                     }
                 }
@@ -578,17 +580,3 @@ struct StepEditorPane: View {
     }
 }
 
-// MARK: - Preview
-
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: RequestChain.self, configurations: config)
-    
-    let chain = RequestChain(name: "Login Flow")
-    container.mainContext.insert(chain)
-    
-    let viewModel = RequestChainViewModel(modelContext: container.mainContext)
-    
-    return ChainRunnerView(viewModel: viewModel, chain: chain)
-        .frame(width: 700, height: 500)
-}

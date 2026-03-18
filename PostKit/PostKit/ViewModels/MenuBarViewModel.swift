@@ -25,10 +25,26 @@ import SwiftUI
 final class MenuBarViewModel {
     var results: [UUID: MenuBarResult] = [:]
     var sendingRequestIDs: Set<UUID> = []
-    
+    var runningMockServerIDs: Set<UUID> = []
+
     @ObservationIgnored @Injected(\.httpClient) private var httpClient
     @ObservationIgnored @Injected(\.requestBuilder) private var requestBuilder
+    @ObservationIgnored @Injected(\.mockServerManager) private var mockServerManager
     
+    func toggleMockServer(_ server: MockServer) async {
+        if runningMockServerIDs.contains(server.id) {
+            await mockServerManager.stopServer(server)
+            runningMockServerIDs.remove(server.id)
+        } else {
+            do {
+                try await mockServerManager.startServer(server)
+                runningMockServerIDs.insert(server.id)
+            } catch {
+                print("[MenuBar] Failed to start mock server: \(error)")
+            }
+        }
+    }
+
     func sendRequest(_ request: HTTPRequest, modelContext: ModelContext) async {
         guard !request.urlTemplate.isEmpty else { return }
 

@@ -7,7 +7,7 @@ import SwiftData
 final class RequestChain {
     var id: UUID
     var name: String
-    var description: String?
+    var chainDescription: String?
     var isEnabled: Bool
     var createdAt: Date
     var updatedAt: Date
@@ -20,10 +20,10 @@ final class RequestChain {
     @Relationship(deleteRule: .cascade)
     var history: [ChainExecutionHistory] = []
     
-    init(name: String, description: String? = nil) {
+    init(name: String, chainDescription: String? = nil) {
         self.id = UUID()
         self.name = name
-        self.description = description
+        self.chainDescription = chainDescription
         self.isEnabled = true
         self.createdAt = Date()
         self.updatedAt = Date()
@@ -37,7 +37,7 @@ final class RequestChain {
     
     /// Duplicate this chain with all its steps
     func duplicated() -> RequestChain {
-        let copy = RequestChain(name: "\(name) (Copy)", description: description)
+        let copy = RequestChain(name: "\(name) (Copy)", chainDescription: chainDescription)
         copy.isEnabled = isEnabled
         
         for step in sortedSteps {

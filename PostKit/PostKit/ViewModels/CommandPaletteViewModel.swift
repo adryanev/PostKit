@@ -53,7 +53,6 @@ final class CommandPaletteViewModel {
     /// Updates the search text and filters results.
     func updateSearch(_ text: String) {
         searchText = text
-        filterItems()
         selectedIndex = filteredItems.isEmpty ? nil : 0
     }
 
@@ -326,11 +325,11 @@ extension KeyEquivalent {
         case .leftArrow: return Character(UnicodeScalar(0xF702)!)
         case .rightArrow: return Character(UnicodeScalar(0xF703)!)
         case .escape: return Character(UnicodeScalar(0x1B)!)
-        case .return, .enter: return Character("\r")
+        case .return: return Character("\r")
         case .tab: return Character("\t")
         case .space: return Character(" ")
         default:
-            return Character(self.description.prefix(1))
+            return nil
         }
     }
 }

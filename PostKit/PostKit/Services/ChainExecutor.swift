@@ -33,7 +33,7 @@ enum ChainExecutorError: LocalizedError, Sendable {
 }
 
 /// Represents the current state of chain execution
-enum ChainExecutionState: Sendable {
+enum ChainExecutionState: Sendable, Equatable {
     case idle
     case running(currentStep: Int, totalSteps: Int)
     case completed

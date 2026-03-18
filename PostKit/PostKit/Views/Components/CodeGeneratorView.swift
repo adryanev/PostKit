@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct CodeGeneratorView: View {
     let request: HTTPRequest

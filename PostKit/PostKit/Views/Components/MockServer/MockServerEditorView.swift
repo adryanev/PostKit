@@ -205,9 +205,9 @@ struct MockServerEditorView: View {
                 GridRow {
                     Text("Description:")
                     
-                    TextField("", text: $server.description ?? "", prompt: Text("Optional description"))
+                    TextField("", text: Binding(get: { server.serverDescription ?? "" }, set: { server.serverDescription = $0.isEmpty ? nil : $0 }), prompt: Text("Optional description"))
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: server.description) {
+                        .onChange(of: server.serverDescription) {
                             server.updatedAt = Date()
                         }
                 }

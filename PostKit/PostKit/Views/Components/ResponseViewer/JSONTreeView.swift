@@ -99,7 +99,7 @@ struct JSONTreeView: View {
         isLoading = true
         parseError = nil
         
-        let result = await Task.detached(priority: .userInitiated) {
+        let result: (JSONValue?, String?) = await Task.detached(priority: .userInitiated) {
             do {
                 let jsonObject = try JSONSerialization.jsonObject(with: data)
                 return (JSONValue.from(jsonObject), nil)

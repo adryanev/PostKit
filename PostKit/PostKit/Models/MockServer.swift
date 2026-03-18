@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 /// Server status enumeration
-enum MockServerStatus: String, Codable, Sendable {
+enum MockServerStatus: String, Codable, Sendable, Equatable {
     case stopped = "stopped"
     case starting = "starting"
     case running = "running"
@@ -38,7 +38,7 @@ final class MockServer {
     var name: String
     var port: Int
     var baseURL: String
-    var description: String?
+    var serverDescription: String?
     var isEnabled: Bool
     var autoStart: Bool
     var corsEnabled: Bool
@@ -60,7 +60,7 @@ final class MockServer {
         name: String,
         port: Int = 3000,
         baseURL: String = "/",
-        description: String? = nil,
+        serverDescription: String? = nil,
         isEnabled: Bool = true,
         autoStart: Bool = false,
         corsEnabled: Bool = true
@@ -69,7 +69,7 @@ final class MockServer {
         self.name = name
         self.port = port
         self.baseURL = baseURL
-        self.description = description
+        self.serverDescription = serverDescription
         self.isEnabled = isEnabled
         self.autoStart = autoStart
         self.corsEnabled = corsEnabled
@@ -94,7 +94,7 @@ final class MockServer {
             name: "\(name) (Copy)",
             port: port + Int.random(in: 1...100), // Avoid port conflicts
             baseURL: baseURL,
-            description: description,
+            serverDescription: serverDescription,
             isEnabled: false,
             autoStart: false,
             corsEnabled: corsEnabled
@@ -127,7 +127,8 @@ extension MockServer {
 }
 
 /// Export-friendly representation of a mock server
-struct MockServerExportData: Codable {
+@preconcurrency
+struct MockServerExportData: Codable, Sendable {
     let name: String
     let port: Int
     let baseURL: String
@@ -141,7 +142,7 @@ struct MockServerExportData: Codable {
         self.name = server.name
         self.port = server.port
         self.baseURL = server.baseURL
-        self.description = server.description
+        self.description = server.serverDescription
         self.corsEnabled = server.corsEnabled
         self.endpoints = server.endpoints.map { MockEndpointExportData(from: $0) }
         self.exportedAt = Date()
@@ -153,7 +154,7 @@ struct MockServerExportData: Codable {
             name: name,
             port: port,
             baseURL: baseURL,
-            description: description,
+            serverDescription: description,
             corsEnabled: corsEnabled
         )
         
@@ -178,7 +179,7 @@ struct MockEndpointExportData: Codable {
         self.path = endpoint.path
         self.method = endpoint.methodRaw
         self.name = endpoint.name
-        self.description = endpoint.description
+        self.description = endpoint.endpointDescription
         self.responses = endpoint.responses.map { MockResponseExportData(from: $0) }
     }
     
@@ -187,7 +188,7 @@ struct MockEndpointExportData: Codable {
             path: path,
             method: HTTPMethod(rawValue: method) ?? .get,
             name: name,
-            description: description
+            endpointDescription: description
         )
         
         for responseData in responses {
@@ -245,7 +246,7 @@ extension MockServer {
         let server = MockServer(
             name: name ?? openAPISpec.info.title,
             port: port,
-            description: openAPISpec.info.description,
+            serverDescription: openAPISpec.info.description,
             corsEnabled: true
         )
         

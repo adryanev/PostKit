@@ -109,7 +109,7 @@ actor MockHTTPServer: MockHTTPServerProtocol {
             os_log(.error, log: logger, "Listener failed: %{public}@", error.localizedDescription)
             isRunning = false
         case .waiting(let error):
-            os_log(.warning, log: logger, "Listener waiting: %{public}@", error.localizedDescription)
+            os_log(.default, log: logger, "Listener waiting: %{public}@", error.localizedDescription)
         default:
             break
         }
@@ -348,7 +348,7 @@ actor MockHTTPServer: MockHTTPServerProtocol {
         }
         
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            connection.send(responseData, completion: .contentProcessed { _ in
+            connection.send(content: responseData, completion: .contentProcessed { _ in
                 continuation.resume()
             })
         }

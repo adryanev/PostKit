@@ -52,7 +52,6 @@ struct RequestSearchableItem: SearchableItem {
         case .delete: return "trash"
         case .head: return "eye"
         case .options: return "list.bullet"
-        case .trace: return "scope"
         }
     }
 

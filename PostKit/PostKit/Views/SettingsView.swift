@@ -1,17 +1,14 @@
 import SwiftUI
-import FactoryKit
 
 // MARK: - Settings Tab
 
 enum SettingsTab: String, CaseIterable {
     case general = "General"
-    case sync = "iCloud"
     case about = "About"
-    
+
     var icon: String {
         switch self {
         case .general: return "gear"
-        case .sync: return "icloud"
         case .about: return "info.circle"
         }
     }
@@ -21,8 +18,7 @@ enum SettingsTab: String, CaseIterable {
 
 struct SettingsView: View {
     @State private var selectedTab: SettingsTab = .general
-    @ObservationIgnored @Injected(\.cloudKitSync) private var cloudKitSync
-    
+
     var body: some View {
         TabView(selection: $selectedTab) {
             GeneralSettingsView()
@@ -30,13 +26,7 @@ struct SettingsView: View {
                     Label("General", systemImage: "gear")
                 }
                 .tag(SettingsTab.general)
-            
-            SyncPreferencesView(syncService: cloudKitSync)
-                .tabItem {
-                    Label("iCloud", systemImage: "icloud")
-                }
-                .tag(SettingsTab.sync)
-            
+
             AboutSettingsView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
@@ -163,7 +153,7 @@ struct AboutSettingsView: View {
                         .font(.headline)
                     
                     LabeledContent("SwiftData") {
-                        Text("Local + iCloud")
+                        Text("Local")
                             .foregroundStyle(.secondary)
                     }
                     
@@ -173,7 +163,7 @@ struct AboutSettingsView: View {
                     }
                     
                     LabeledContent("Built with") {
-                        Text("SwiftUI, SwiftData, CloudKit")
+                        Text("SwiftUI, SwiftData")
                             .foregroundStyle(.secondary)
                     }
                 }

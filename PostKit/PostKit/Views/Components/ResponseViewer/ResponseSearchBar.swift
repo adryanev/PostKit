@@ -38,7 +38,7 @@ struct ResponseSearchBar: View {
             if !text.isEmpty {
                 Text(matchCount > 0 ? "\(currentMatch + 1) of \(matchCount)" : "No matches")
                     .font(.system(size: 11))
-                    .foregroundStyle(matchCount > 0 ? .secondary : .red)
+                    .foregroundStyle(matchCount > 0 ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
                     .padding(.horizontal, 4)
             }
             

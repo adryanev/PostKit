@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct CommandPalette: View {
     @State private var viewModel: CommandPaletteViewModel
@@ -79,38 +80,7 @@ struct CommandPalette: View {
                 if viewModel.filteredItems.isEmpty {
                     emptyStateView
                 } else {
-                    ScrollViewReader { proxy in
-                        let flatItems = viewModel.filteredItems
-                        List(selection: $viewModel.selectedIndex) {
-                            ForEach(Array(viewModel.filteredGroupedItems.keys.sorted()), id: \.self) { category in
-                                if let items = viewModel.filteredGroupedItems[category], !items.isEmpty {
-                                    Section(header: categoryHeader(category)) {
-                                        ForEach(Array(items.enumerated()), id: \.element) { _, item in
-                                            let flatIndex = flatItems.firstIndex(where: { $0.displayTitle == item.displayTitle && $0.category == item.category }) ?? 0
-                                            ItemRow(
-                                                item: item,
-                                                index: flatIndex,
-                                                isSelected: viewModel.selectedIndex == flatIndex
-                                            )
-                                            .tag(flatIndex)
-                                            .id(flatIndex)
-                                            .onTapGesture {
-                                                viewModel.selectedIndex = flatIndex
-                                                viewModel.executeSelectedItem()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .scrollDisabled(false)
-                        .frame(maxHeight: 400)
-                        .onChange(of: viewModel.selectedIndex) { _, newIndex in
-                            guard let index = newIndex else { return }
-                            proxy.scrollTo(index)
-                        }
-                    }
+                    resultsListView
                 }
 
                 Divider()
@@ -156,6 +126,41 @@ struct CommandPalette: View {
                 .foregroundStyle(.tertiary)
         }
         .frame(height: 200)
+    }
+
+    private var resultsListView: some View {
+        ScrollViewReader { proxy in
+            let flatItems = viewModel.filteredItems
+            List(selection: $viewModel.selectedIndex) {
+                ForEach(Array(viewModel.filteredGroupedItems.keys.sorted()), id: \.self) { category in
+                    if let items = viewModel.filteredGroupedItems[category], !items.isEmpty {
+                        Section(header: categoryHeader(category)) {
+                            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                                let flatIndex: Int = flatItems.firstIndex(where: { $0.displayTitle == item.displayTitle && $0.category == item.category }) ?? 0
+                                ItemRow(
+                                    item: item,
+                                    index: flatIndex,
+                                    isSelected: viewModel.selectedIndex == flatIndex
+                                )
+                                .tag(flatIndex)
+                                .id(flatIndex)
+                                .onTapGesture {
+                                    viewModel.selectedIndex = flatIndex
+                                    viewModel.executeSelectedItem()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollDisabled(false)
+            .frame(maxHeight: 400)
+            .onChange(of: viewModel.selectedIndex) { _, newIndex in
+                guard let index = newIndex else { return }
+                proxy.scrollTo(index)
+            }
+        }
     }
 
     private func categoryHeader(_ title: String) -> some View {
@@ -235,7 +240,7 @@ struct CommandPalette: View {
             }
             return .ignored
 
-        case .return, .enter:
+        case .return:
             viewModel.executeSelectedItem()
             return .handled
 
@@ -244,7 +249,7 @@ struct CommandPalette: View {
 
         default:
             // Check for Vim-style key presses
-            if vimModeEnabled, let char = keyPress.characters {
+            if vimModeEnabled, let char = keyPress.characters.first {
                 let lowerChar = char.lowercased().first
                 if ["j", "k"].contains(lowerChar) {
                     viewModel.handleVimKey(lowerChar!)
@@ -331,7 +336,7 @@ struct ItemRow: View {
     CommandPalette(
         viewModel: CommandPaletteViewModel(modelContext: {
             let config = ModelConfiguration(isStoredInMemoryOnly: true)
-            let container = try! ModelContainer(for: HTTPRequest.self, configurations: [config])
+            let container = try! ModelContainer(for: HTTPRequest.self, configurations: config)
             return container.mainContext
         }()),
         onDismiss: {}

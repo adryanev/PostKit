@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Visual flow builder for request chains
 struct ChainBuilderView: View {
@@ -154,24 +155,22 @@ struct ChainBuilderView: View {
             .disabled(chain.steps.isEmpty)
         }
         
-        ToolbarItemGroup {
-            Button {
-                showingExecutionHistory = true
-            } label: {
-                Label("History", systemImage: "clock.arrow.circlepath")
-            }
-            
-            Button {
-                showingChainSettings = true
-            } label: {
-                Label("Settings", systemImage: "slider.horizontal.3")
-            }
-            
-            Menu {
+        Button {
+            showingExecutionHistory = true
+        } label: {
+            Label("History", systemImage: "clock.arrow.circlepath")
+        }
+
+        Button {
+            showingChainSettings = true
+        } label: {
+            Label("Settings", systemImage: "slider.horizontal.3")
+        }
+
+        Menu {
                 Button {
-                    if let copy = viewModel.duplicateChain(chain) {
-                        chain = copy
-                    }
+                    let copy = viewModel.duplicateChain(chain)
+                    chain = copy
                 } label: {
                     Label("Duplicate Chain", systemImage: "doc.on.doc")
                 }
@@ -187,9 +186,8 @@ struct ChainBuilderView: View {
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
             }
-        }
     }
-    
+
     // MARK: - Actions
     
     private func deleteSteps(at offsets: IndexSet) {
@@ -394,9 +392,10 @@ struct ChainStepRowView: View {
         case .put: return .orange
         case .patch: return .yellow
         case .delete: return .red
+        case .head, .options: return .gray
         }
     }
-    
+
     private func statusCodeColor(_ code: Int) -> Color {
         switch code {
         case 200..<300: return .green
@@ -558,9 +557,10 @@ struct ChainStepNodeView: View {
         case .put: return .orange
         case .patch: return .yellow
         case .delete: return .red
+        case .head, .options: return .gray
         }
     }
-    
+
     private var nodeBackground: Color {
         if isSelected {
             return Color.accentColor.opacity(0.1)
@@ -581,15 +581,3 @@ func copyToClipboard(_ string: String) {
     NSPasteboard.general.setString(string, forType: .string)
 }
 
-// MARK: - Preview
-
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: RequestChain.self, configurations: config)
-    
-    let chain = RequestChain(name: "Login Flow")
-    container.mainContext.insert(chain)
-    
-    return ChainBuilderView(chain: chain, modelContext: container.mainContext)
-        .frame(width: 1000, height: 700)
-}

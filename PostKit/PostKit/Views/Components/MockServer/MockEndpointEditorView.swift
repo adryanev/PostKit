@@ -103,9 +103,9 @@ struct MockEndpointEditorView: View {
                 GridRow {
                     Text("Description:")
                     
-                    TextField("", text: $endpoint.description ?? "", prompt: Text("Optional description"))
+                    TextField("", text: Binding(get: { endpoint.endpointDescription ?? "" }, set: { endpoint.endpointDescription = $0.isEmpty ? nil : $0 }), prompt: Text("Optional description"))
                         .textFieldStyle(.roundedBorder)
-                        .onChange(of: endpoint.description) {
+                        .onChange(of: endpoint.endpointDescription) {
                             endpoint.updatedAt = Date()
                         }
                 }

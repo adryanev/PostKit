@@ -3,7 +3,6 @@ import SwiftData
 import UniformTypeIdentifiers
 import os
 import FactoryKit
-import CloudKit
 
 private let log = OSLog(subsystem: "dev.adryanev.PostKit", category: "PostKitApp")
 
@@ -83,22 +82,7 @@ struct PostKitApp: App {
             MockResponse.self
         ])
         
-        // Check if iCloud sync is enabled
-        let iCloudSyncEnabled = UserDefaults.standard.bool(forKey: "CloudKitSyncEnabled")
-        
-        let modelConfiguration: ModelConfiguration
-        if iCloudSyncEnabled {
-            // Use CloudKit for sync when enabled
-            modelConfiguration = ModelConfiguration(
-                "PostKit",
-                schema: schema,
-                cloudKitDatabase: .private("iCloud.dev.adryanev.PostKit")
-            )
-            os_log(.info, log: log, "SwiftData configured with CloudKit sync enabled")
-        } else {
-            // Local-only storage
-            modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        }
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

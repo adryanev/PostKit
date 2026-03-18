@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// List view displaying all mock servers
 struct MockServerListView: View {

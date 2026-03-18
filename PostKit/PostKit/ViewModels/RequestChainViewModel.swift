@@ -26,7 +26,7 @@ final class RequestChainViewModel {
     
     // MARK: - Dependencies
     
-    private let modelContext: ModelContext
+    let modelContext: ModelContext
     @ObservationIgnored @Injected(\.httpClient) private var httpClient
     @ObservationIgnored @Injected(\.requestBuilder) private var requestBuilder
     
@@ -41,8 +41,8 @@ final class RequestChainViewModel {
     
     // MARK: - Chain Management
     
-    func createChain(name: String, description: String? = nil) -> RequestChain {
-        let chain = RequestChain(name: name, description: description)
+    func createChain(name: String, chainDescription: String? = nil) -> RequestChain {
+        let chain = RequestChain(name: name, chainDescription: chainDescription)
         modelContext.insert(chain)
         try? modelContext.save()
         return chain
