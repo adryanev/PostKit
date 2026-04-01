@@ -1,0 +1,8 @@
+{
+    "scripts": {
+        "setup": "cd PostKit && xcodebuild -resolvePackageDependencies -scheme PostKit -destination 'platform=macOS'",
+        "run": "cd PostKit && xcodebuild build -scheme PostKit -destination 'platform=macOS'",
+        "archive": "cd PostKit && xcodebuild clean -scheme PostKit -destination 'platform=macOS'"
+    },
+    "runScriptMode": "nonconcurrent"
+}
