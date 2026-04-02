@@ -12,6 +12,10 @@ final class Folder {
     @Relationship(deleteRule: .cascade, inverse: \HTTPRequest.folder)
     var requests: [HTTPRequest] = []
     
+    @Transient var sortedRequests: [HTTPRequest] {
+        requests.sorted(by: { $0.sortOrder < $1.sortOrder })
+    }
+    
     init(name: String) {
         self.id = UUID()
         self.name = name

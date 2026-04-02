@@ -19,6 +19,14 @@ final class RequestCollection {
     @Relationship(deleteRule: .cascade, inverse: \APIEnvironment.collection)
     var environments: [APIEnvironment] = []
     
+    @Transient var sortedFolders: [Folder] {
+        folders.sorted(by: { $0.sortOrder < $1.sortOrder })
+    }
+    
+    @Transient var rootRequests: [HTTPRequest] {
+        requests.filter { $0.folder == nil }.sorted(by: { $0.sortOrder < $1.sortOrder })
+    }
+    
     init(name: String, folderPath: String? = nil) {
         self.id = UUID()
         self.name = name

@@ -9,6 +9,7 @@ final class HTTPRequest {
     var urlTemplate: String
     var headersData: Data?
     var queryParamsData: Data?
+    var pathVariablesData: Data?
     var bodyTypeRaw: String
     var bodyContent: String?
     var authConfigData: Data?
@@ -45,7 +46,6 @@ final class HTTPRequest {
 
     @Transient var authConfig: AuthConfig {
         get {
-            // Return cached value if underlying data hasn't changed
             if let cached = _cachedAuthConfig, _authConfigDataSnapshot == authConfigData {
                 return cached
             }
@@ -59,6 +59,66 @@ final class HTTPRequest {
             _cachedAuthConfig = newValue
             authConfigData = try? JSONEncoder().encode(newValue)
             _authConfigDataSnapshot = authConfigData
+        }
+    }
+    
+    @Transient private var _cachedHeaders: [KeyValuePair]?
+    @Transient private var _headersDataSnapshot: Data?
+    
+    @Transient var headers: [KeyValuePair] {
+        get {
+            if let cached = _cachedHeaders, _headersDataSnapshot == headersData {
+                return cached
+            }
+            let decoded = [KeyValuePair].decode(from: headersData)
+            _cachedHeaders = decoded
+            _headersDataSnapshot = headersData
+            return decoded
+        }
+        set {
+            _cachedHeaders = newValue
+            headersData = newValue.encode()
+            _headersDataSnapshot = headersData
+        }
+    }
+    
+    @Transient private var _cachedQueryParams: [KeyValuePair]?
+    @Transient private var _queryParamsDataSnapshot: Data?
+    
+    @Transient var queryParams: [KeyValuePair] {
+        get {
+            if let cached = _cachedQueryParams, _queryParamsDataSnapshot == queryParamsData {
+                return cached
+            }
+            let decoded = [KeyValuePair].decode(from: queryParamsData)
+            _cachedQueryParams = decoded
+            _queryParamsDataSnapshot = queryParamsData
+            return decoded
+        }
+        set {
+            _cachedQueryParams = newValue
+            queryParamsData = newValue.encode()
+            _queryParamsDataSnapshot = queryParamsData
+        }
+    }
+    
+    @Transient private var _cachedPathVariables: [KeyValuePair]?
+    @Transient private var _pathVariablesDataSnapshot: Data?
+    
+    @Transient var pathVariables: [KeyValuePair] {
+        get {
+            if let cached = _cachedPathVariables, _pathVariablesDataSnapshot == pathVariablesData {
+                return cached
+            }
+            let decoded = [KeyValuePair].decode(from: pathVariablesData)
+            _cachedPathVariables = decoded
+            _pathVariablesDataSnapshot = pathVariablesData
+            return decoded
+        }
+        set {
+            _cachedPathVariables = newValue
+            pathVariablesData = newValue.encode()
+            _pathVariablesDataSnapshot = pathVariablesData
         }
     }
     
@@ -81,6 +141,7 @@ final class HTTPRequest {
         copy.urlTemplate = urlTemplate
         copy.headersData = headersData
         copy.queryParamsData = queryParamsData
+        copy.pathVariablesData = pathVariablesData
         copy.bodyTypeRaw = bodyTypeRaw
         copy.bodyContent = bodyContent
         copy.authConfigData = authConfigData

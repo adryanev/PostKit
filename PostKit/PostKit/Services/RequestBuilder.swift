@@ -5,7 +5,7 @@ import SwiftData
 /// Shared request-building logic used by both RequestViewModel and MenuBarView.
 /// Accepts pre-fetched environment variables so callers can supply overrides
 /// (e.g. after pre-request scripts modify the variables map).
-final class RequestBuilder: Sendable {
+final class RequestBuilder: RequestBuilderProtocol {
 
     @Injected(\.variableInterpolator) private var interpolator
 
@@ -25,17 +25,26 @@ final class RequestBuilder: Sendable {
         urlOverride: String? = nil,
         bodyOverride: String?? = nil
     ) throws -> URLRequest {
+        let allVariables = variables
+
+        // Build path variable lookup from request's cached pathVariables
+        var pathVarLookup: [String: String] = [:]
+        for pathVar in request.pathVariables where pathVar.isEnabled && !pathVar.key.isEmpty {
+            pathVarLookup[pathVar.key] = pathVar.value
+        }
+
         let effectiveURL = urlOverride ?? request.urlTemplate
-        let interpolatedURL = try interpolator.interpolate(effectiveURL, with: variables)
+        // First replace :varName path variables, then {{varName}} environment variables
+        let pathInterpolated = interpolatePathVariables(effectiveURL, with: pathVarLookup)
+        let interpolatedURL = try interpolator.interpolate(pathInterpolated, with: allVariables)
 
         var urlComponents = URLComponents(string: interpolatedURL)
 
-        let queryParams = [KeyValuePair].decode(from: request.queryParamsData)
         var queryItems = urlComponents?.queryItems ?? []
 
-        for param in queryParams where param.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(param.key, with: variables)
-            let interpolatedValue = try interpolator.interpolate(param.value, with: variables)
+        for param in request.queryParams where param.isEnabled {
+            let interpolatedKey = try interpolator.interpolate(param.key, with: allVariables)
+            let interpolatedValue = try interpolator.interpolate(param.value, with: allVariables)
             queryItems.append(URLQueryItem(name: interpolatedKey, value: interpolatedValue))
         }
 
@@ -44,7 +53,7 @@ final class RequestBuilder: Sendable {
            authConfig.apiKeyLocation == .queryParam,
            let name = authConfig.apiKeyName,
            let value = authConfig.apiKeyValue {
-            let resolved = (try? interpolator.interpolate(value, with: variables)) ?? value
+            let resolved = (try? interpolator.interpolate(value, with: allVariables)) ?? value
             queryItems.append(URLQueryItem(name: name, value: resolved))
         }
 
@@ -60,16 +69,15 @@ final class RequestBuilder: Sendable {
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.timeoutInterval = 30
 
-        let headers = [KeyValuePair].decode(from: request.headersData)
-        for header in headers where header.isEnabled {
-            let interpolatedKey = try interpolator.interpolate(header.key, with: variables)
-            let interpolatedValue = try interpolator.interpolate(header.value, with: variables)
+        for header in request.headers where header.isEnabled {
+            let interpolatedKey = try interpolator.interpolate(header.key, with: allVariables)
+            let interpolatedValue = try interpolator.interpolate(header.value, with: allVariables)
             urlRequest.setValue(interpolatedValue, forHTTPHeaderField: interpolatedKey)
         }
 
         let effectiveBody: String? = bodyOverride ?? request.bodyContent
         if let bodyContent = effectiveBody, !bodyContent.isEmpty {
-            let interpolatedBody = try interpolator.interpolate(bodyContent, with: variables)
+            let interpolatedBody = try interpolator.interpolate(bodyContent, with: allVariables)
             switch request.bodyType {
             case .json, .raw, .xml:
                 urlRequest.httpBody = interpolatedBody.data(using: .utf8)
@@ -84,7 +92,7 @@ final class RequestBuilder: Sendable {
             }
         }
 
-        applyAuth(&urlRequest, authConfig: authConfig, variables: variables)
+        applyAuth(&urlRequest, authConfig: authConfig, variables: allVariables)
 
         return urlRequest
     }
@@ -117,6 +125,25 @@ final class RequestBuilder: Sendable {
         case .none:
             break
         }
+    }
+
+    // MARK: - Path Variable Interpolation
+
+    /// Replaces `:varName` path variable tokens in a URL with their values.
+    /// Only matches `:varName` after a `/` to avoid false positives (e.g. port numbers in `http://host:8080`).
+    private func interpolatePathVariables(_ template: String, with pathVars: [String: String]) -> String {
+        guard !pathVars.isEmpty else { return template }
+
+        var result = template
+        for (key, value) in pathVars {
+            // Match /:key followed by end-of-string, /, or ?
+            let pattern = "/:\(NSRegularExpression.escapedPattern(for: key))(?=[/?]|$)"
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let range = NSRange(result.startIndex..., in: result)
+                result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: "/\(NSRegularExpression.escapedTemplate(for: value))")
+            }
+        }
+        return result
     }
 
     // MARK: - Environment Variables

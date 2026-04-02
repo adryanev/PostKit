@@ -126,6 +126,8 @@ struct PostmanEnvironment: Sendable {
 
 final class PostmanParser: PostmanParserProtocol, Sendable {
     
+    nonisolated init() {}
+    
     func parse(_ data: Data) throws -> PostmanCollection {
         let json: [String: Any]
         do {

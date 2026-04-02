@@ -4,7 +4,7 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
     private let session: URLSession
     private var activeTasks: [UUID: URLSessionTask] = [:]
 
-    private let maxMemorySize: Int64 = httpClientMaxMemorySize
+    private let maxMemorySize: Int64 = HTTPClientConstants.maxMemorySize
 
     init(configuration: URLSessionConfiguration = .default) {
         let config = configuration
@@ -19,6 +19,10 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
 
         // Use download(for:) which streams the response to a temporary file on disk,
         // avoiding loading the entire response body into memory at once.
+        // Store the task reference outside the continuation so the
+        // cancellation handler can reach it without an actor hop.
+        nonisolated(unsafe) var downloadTask: URLSessionDownloadTask?
+
         let (tempDownloadURL, response): (URL, URLResponse) = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 let task = session.downloadTask(with: request) { url, response, error in
@@ -40,8 +44,6 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                         return
                     }
 
-                    // Move the file to a stable location before the callback returns,
-                    // because the system deletes the temporary download file immediately after.
                     let stableURL = FileManager.default.temporaryDirectory
                         .appendingPathComponent("postkit-response-\(UUID().uuidString).tmp")
                     do {
@@ -52,11 +54,12 @@ actor URLSessionHTTPClient: HTTPClientProtocol {
                     }
                 }
 
-                Task { await self.storeTask(task, id: taskID) }
+                downloadTask = task
+                self.activeTasks[taskID] = task
                 task.resume()
             }
         } onCancel: {
-            Task { await self.cancel(taskID: taskID) }
+            downloadTask?.cancel()
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {

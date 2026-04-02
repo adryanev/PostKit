@@ -116,14 +116,19 @@ struct CodeTextView: NSViewRepresentable {
             }
         } else {
             guard !context.coordinator.isUpdatingFromSwiftUI else { return }
-            
+
             if text != context.coordinator.lastWrittenText {
-                guard textView.string != text else { return }
-                
+                guard textView.string != text else {
+                    context.coordinator.lastWrittenText = text
+                    return
+                }
+
                 context.coordinator.isUpdatingFromSwiftUI = true
                 let selectedRanges = textView.selectedRanges
                 textView.string = text
                 textView.selectedRanges = selectedRanges
+                context.coordinator.lastWrittenText = text
+                context.coordinator.lastTextByteCount = text.utf8.count
                 context.coordinator.isUpdatingFromSwiftUI = false
             }
         }

@@ -13,6 +13,10 @@ enum InterpolationError: LocalizedError {
 
 final class VariableInterpolator: VariableInterpolatorProtocol, Sendable {
     private let variableRegex: NSRegularExpression
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
 
     init() {
         // Safe to force-try: pattern is a compile-time constant.
@@ -55,7 +59,7 @@ final class VariableInterpolator: VariableInterpolatorProtocol, Sendable {
         case "$guid", "$uuid":
             return UUID().uuidString
         case "$isoTimestamp":
-            return ISO8601DateFormatter().string(from: Date())
+            return Self.isoFormatter.string(from: Date())
         case "$randomString":
             return String((0..<16).map { _ in "abcdefghijklmnopqrstuvwxyz".randomElement()! })
         default:

@@ -33,7 +33,29 @@ extension Container {
         self { SpotlightIndexer.shared }.singleton
     }
 
-    nonisolated var requestBuilder: Factory<RequestBuilder> {
+    nonisolated var requestBuilder: Factory<RequestBuilderProtocol> {
         self { RequestBuilder() }
     }
+
+    nonisolated var codeGenerator: Factory<CodeGeneratorProtocol> {
+        self { CodeGenerator() }
+    }
+
+    // MARK: - Navigation
+
+    @MainActor
+    var navigationCoordinator: Factory<NavigationCoordinator> {
+        self { @MainActor in NavigationCoordinator() }.scope(.singleton)
+    }
+
+    // MARK: - Chain Services
+
+    nonisolated var responseExtractor: Factory<ResponseExtractorProtocol> {
+        self { ResponseExtractor() }
+    }
+
+    nonisolated var chainExecutor: Factory<ChainExecutorServiceProtocol> {
+        self { ChainExecutorService() }
+    }
+
 }

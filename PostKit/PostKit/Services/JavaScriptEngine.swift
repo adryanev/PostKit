@@ -3,11 +3,20 @@ import JavaScriptCore
 
 final class JavaScriptEngine: ScriptEngineProtocol, Sendable {
     private static let timeout: TimeInterval = 5.0
+    
+    private static let allowedURLSchemes: Set<String> = ["http", "https"]
 
     private final class ExecutionContext {
         var consoleOutput: [String] = []
         var environmentChanges: [String: String] = [:]
         var headersChanges: [String: String?] = [:]
+        var validationErrors: [String] = []
+    }
+    
+    static func validateURLScheme(_ url: String) -> Bool {
+        guard let parsed = URL(string: url) else { return false }
+        guard let scheme = parsed.scheme?.lowercased() else { return false }
+        return allowedURLSchemes.contains(scheme)
     }
 
     func executePreRequest(
@@ -87,7 +96,8 @@ final class JavaScriptEngine: ScriptEngineProtocol, Sendable {
             throw ScriptEngineError.runtimeError("Failed to create JavaScript context.")
         }
         let executionContext = ExecutionContext()
-
+        
+        setupSecurityHardening(context: context)
         setupConsole(context: context, executionContext: executionContext)
         setupPKNamespace(
             context: context,
@@ -120,7 +130,11 @@ final class JavaScriptEngine: ScriptEngineProtocol, Sendable {
                !urlVal.isUndefined, !urlVal.isNull,
                let urlString = urlVal.toString(),
                urlString != request.url {
-                modifiedURL = urlString
+                if Self.validateURLScheme(urlString) {
+                    modifiedURL = urlString
+                } else {
+                    executionContext.validationErrors.append("URL scheme not allowed: \(urlString). Only http/https are permitted.")
+                }
             }
 
             if let bodyVal = pkRequest.objectForKeyedSubscript("body"),
@@ -131,12 +145,15 @@ final class JavaScriptEngine: ScriptEngineProtocol, Sendable {
             }
         }
 
+        var consoleOutput = executionContext.consoleOutput
+        consoleOutput.append(contentsOf: executionContext.validationErrors)
+
         return ScriptPreRequestResult(
             modifiedHeaders: modifiedHeaders,
             modifiedURL: modifiedURL,
             modifiedBody: modifiedBody,
             environmentChanges: executionContext.environmentChanges,
-            consoleOutput: executionContext.consoleOutput
+            consoleOutput: consoleOutput
         )
     }
 
@@ -171,6 +188,27 @@ final class JavaScriptEngine: ScriptEngineProtocol, Sendable {
             environmentChanges: executionContext.environmentChanges,
             consoleOutput: executionContext.consoleOutput
         )
+    }
+
+    private func setupSecurityHardening(context: JSContext) {
+        context.evaluateScript("""
+            (function() {
+                var origObject = Object;
+                var origArray = Array;
+                var origString = String;
+                var origNumber = Number;
+                var origBoolean = Boolean;
+                
+                // Prevent prototype pollution attempts but don't break error handling
+                try {
+                    Object.freeze(origObject.prototype);
+                    Object.freeze(origArray.prototype);
+                    Object.freeze(origString.prototype);
+                    Object.freeze(origNumber.prototype);
+                    Object.freeze(origBoolean.prototype);
+                } catch(e) {}
+            })();
+        """)
     }
 
     private func setupConsole(context: JSContext, executionContext: ExecutionContext) {

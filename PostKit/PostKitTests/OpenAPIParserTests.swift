@@ -496,7 +496,7 @@ struct OpenAPIParserTests {
         
         let result = try parser.parseSpec(data)
         #expect(result.endpoints.count == 1)
-        #expect(result.endpoints[0].path == "/users/{{id}}/posts/{{postId}}")
+        #expect(result.endpoints[0].path == "/users/:id/posts/:postId")
     }
     
     // MARK: - Parameter Merge Tests

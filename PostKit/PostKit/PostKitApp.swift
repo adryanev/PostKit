@@ -44,7 +44,10 @@ struct PostKitApp: App {
     @State private var showingImportCollection = false
     @State private var showingPostmanImport = false
     @State private var postmanEnvironmentCollection: RequestCollection?
-    
+    @State private var showingCommandPalette = false
+    @State private var commandPaletteViewModel: CommandPaletteViewModel?
+    @ObservationIgnored @MainActor @Injected(\.navigationCoordinator) private var coordinator
+
     init() {
         Task.detached(priority: .background) {
             cleanupStaleTempFiles()
@@ -70,18 +73,13 @@ struct PostKitApp: App {
             APIEnvironment.self,
             Variable.self,
             HistoryEntry.self,
-            ResponseExample.self
+            ResponseExample.self,
+            RequestChain.self,
+            ChainStep.self,
+            ChainExecutionHistory.self
         ])
         
-        #if ICLOUD_SYNC
-        let modelConfiguration = ModelConfiguration(
-            "PostKit",
-            schema: schema,
-            cloudKitDatabase: .automatic
-        )
-        #else
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        #endif
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -92,32 +90,65 @@ struct PostKitApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .sheet(item: $curlImportCollection) { collection in
-                    CurlImportSheet(collection: collection)
-                }
-                .sheet(isPresented: $showingOpenAPIImport) {
-                    OpenAPIImportSheet()
-                }
-                .sheet(isPresented: $showingPostmanImport) {
-                    PostmanImportSheet()
-                }
-                .sheet(item: $postmanEnvironmentCollection) { collection in
-                    PostmanEnvironmentImportSheet(collection: collection)
-                }
-                .fileImporter(
-                    isPresented: $showingImportCollection,
-                    allowedContentTypes: [.json],
-                    allowsMultipleSelection: false
-                ) { result in
-                    if case .success(let urls) = result, let url = urls.first {
-                        try? importCollection(from: url)
+            ZStack {
+                ContentView()
+                    .sheet(item: $curlImportCollection) { collection in
+                        CurlImportSheet(collection: collection)
                     }
+                    .sheet(isPresented: $showingOpenAPIImport) {
+                        OpenAPIImportSheet()
+                    }
+                    .sheet(isPresented: $showingPostmanImport) {
+                        PostmanImportSheet()
+                    }
+                    .sheet(item: $postmanEnvironmentCollection) { collection in
+                        PostmanEnvironmentImportSheet(collection: collection)
+                    }
+                    .fileImporter(
+                        isPresented: $showingImportCollection,
+                        allowedContentTypes: [.json],
+                        allowsMultipleSelection: false
+                    ) { result in
+                        if case .success(let urls) = result, let url = urls.first {
+                            try? importCollection(from: url)
+                        }
+                    }
+
+                // Command Palette Overlay
+                if showingCommandPalette, let viewModel = commandPaletteViewModel {
+                    CommandPalette(
+                        viewModel: viewModel,
+                        onDismiss: {
+                            showingCommandPalette = false
+                        }
+                    )
+                    .zIndex(1000)
                 }
+            }
+            .onChange(of: coordinator.pendingAction) { _, _ in
+                if let action = coordinator.consumeAction() {
+                    handleCommandPaletteAction(action)
+                }
+            }
         }
         .modelContainer(sharedModelContainer)
         .commands {
             PostKitCommands()
+
+            CommandGroup(replacing: .appInfo) {
+                Button("Command Palette") {
+                    showCommandPalette()
+                }
+                .keyboardShortcut(KeyboardShortcuts.commandPalette, modifiers: KeyboardShortcuts.commandModifiers)
+                
+                Divider()
+                
+                Button("Settings...") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
             CommandGroup(after: .newItem) {
                 Button("Import cURL Command...") {
                     curlImportCollection = fetchOrCreateImportCollection()
@@ -148,6 +179,11 @@ struct PostKitApp: App {
         }
         .menuBarExtraStyle(.menu)
         .modelContainer(sharedModelContainer)
+        
+        // Settings window
+        Settings {
+            SettingsView()
+        }
     }
     
     private func fetchOrCreateImportCollection() -> RequestCollection {
@@ -168,5 +204,31 @@ struct PostKitApp: App {
         let exporter = Container.shared.fileExporter()
         let context = sharedModelContainer.mainContext
         _ = try exporter.importCollection(from: url, into: context)
+    }
+
+    // MARK: - Command Palette
+
+    private func showCommandPalette() {
+        let context = sharedModelContainer.mainContext
+        commandPaletteViewModel = CommandPaletteViewModel(modelContext: context)
+        commandPaletteViewModel?.show()
+        showingCommandPalette = true
+    }
+
+    private func handleCommandPaletteAction(_ action: CommandPaletteAction) {
+        switch action {
+        case .newRequest:
+            curlImportCollection = fetchOrCreateImportCollection()
+        case .newCollection:
+            // Create a new collection - this would need UI handling
+            // For now, just close the palette
+            showingCommandPalette = false
+        case .importCurl:
+            curlImportCollection = fetchOrCreateImportCollection()
+        case .importOpenAPI:
+            showingOpenAPIImport = true
+        case .importPostman:
+            showingPostmanImport = true
+        }
     }
 }

@@ -42,6 +42,8 @@ struct ExportedKeyValuePair: Codable {
 
 @MainActor
 final class FileExporter: FileExporterProtocol {
+    private static let maxImportFileSize: Int64 = 50 * 1024 * 1024 // 50MB
+    
     // Header keys whose values are stripped on export to prevent credential leaks.
     // Comparison is case-insensitive.
     private static let sensitiveHeaderKeys: Set<String> = [
@@ -118,6 +120,11 @@ final class FileExporter: FileExporterProtocol {
     }
     
     func importCollection(from url: URL, into context: ModelContext) throws -> RequestCollection {
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        if let fileSize = fileAttributes[.size] as? Int64, fileSize > Self.maxImportFileSize {
+            throw FileExporterError.fileTooLarge(size: fileSize, maxSize: Self.maxImportFileSize)
+        }
+        
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -180,6 +187,7 @@ final class FileExporter: FileExporterProtocol {
 enum FileExporterError: LocalizedError {
     case cancelled
     case invalidFormat
+    case fileTooLarge(size: Int64, maxSize: Int64)
     
     var errorDescription: String? {
         switch self {
@@ -187,6 +195,10 @@ enum FileExporterError: LocalizedError {
             return "Export cancelled"
         case .invalidFormat:
             return "Invalid file format"
+        case .fileTooLarge(let size, let maxSize):
+            let sizeMB = Double(size) / 1_000_000
+            let maxSizeMB = Double(maxSize) / 1_000_000
+            return "File too large (\(String(format: "%.1f", sizeMB)) MB). Maximum allowed: \(String(format: "%.0f", maxSizeMB)) MB"
         }
     }
 }
